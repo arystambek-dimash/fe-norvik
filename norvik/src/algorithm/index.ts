@@ -1,0 +1,55 @@
+// Types & constants
+export type {
+  Anchor,
+  AnchorType,
+  GoldenRule,
+  KitchenPlan,
+  LayoutType,
+  PlacedModule,
+  PlannerInput,
+  ScoreBreakdown,
+  ScoringResult,
+  Segment,
+  SegmentContext,
+  SolverCandidate,
+  SolverVariant,
+  WallConfig,
+  WallPlan,
+} from './types';
+
+export {
+  CORNER_CABINET_DEPTH,
+  CORNER_WALL_OCCUPANCY,
+  FILLER_WIDTHS,
+  LOWER_DEPTH,
+  LOWER_HEIGHT,
+  MIN_SEGMENT,
+  PLINTH_HEIGHT,
+  SWEET_SPOT_MAX,
+  SWEET_SPOT_MIN,
+  TRIANGLE_MAX,
+  TRIANGLE_MIN,
+  UPPER_DEPTH,
+  UPPER_HEIGHT,
+  UPPER_Y,
+} from './constants';
+
+// Segmenter
+export { segmentWall } from './segmenter';
+
+// Golden Table
+export { GoldenTable } from './golden-table';
+export type { FillerMatch } from './golden-table';
+
+// Solver
+export { solve } from './solver';
+
+// Scoring
+export { scorePlan } from './scoring-engine';
+
+// Planner (orchestrator)
+export { planKitchen, resetModuleCounter } from './planner';
+
+// Derive input
+export { deriveInput } from './derive-input';
+export type { KitchenStoreState } from './derive-input';

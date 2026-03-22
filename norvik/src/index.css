@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+@theme {
+  /* Warm off-white background with cream undertone */
+  --color-background: oklch(0.98 0.005 80);
+  --color-foreground: oklch(0.18 0.02 50);
+
+  /* Cards: slightly lighter than background for subtle lift */
+  --color-card: oklch(1 0.003 80);
+  --color-card-foreground: oklch(0.18 0.02 50);
+
+  --color-popover: oklch(1 0.003 80);
+  --color-popover-foreground: oklch(0.18 0.02 50);
+
+  /* Primary: rich walnut brown */
+  --color-primary: oklch(0.42 0.06 50);
+  --color-primary-foreground: oklch(0.98 0.005 80);
+
+  /* Secondary: warm light beige */
+  --color-secondary: oklch(0.94 0.01 70);
+  --color-secondary-foreground: oklch(0.35 0.04 50);
+
+  /* Muted: warm gray */
+  --color-muted: oklch(0.94 0.008 70);
+  --color-muted-foreground: oklch(0.50 0.02 60);
+
+  /* Accent: warm brass/gold */
+  --color-accent: oklch(0.94 0.015 70);
+  --color-accent-foreground: oklch(0.35 0.04 50);
+
+  /* Destructive: muted terracotta */
+  --color-destructive: oklch(0.55 0.18 25);
+  --color-destructive-foreground: oklch(0.55 0.18 25);
+
+  /* Border: warm soft border */
+  --color-border: oklch(0.90 0.01 70);
+  --color-input: oklch(0.90 0.01 70);
+  --color-ring: oklch(0.42 0.06 50);
+
+  /* Chart colors — warm palette */
+  --color-chart-1: oklch(0.55 0.15 45);
+  --color-chart-2: oklch(0.65 0.12 80);
+  --color-chart-3: oklch(0.45 0.08 30);
+  --color-chart-4: oklch(0.72 0.14 75);
+  --color-chart-5: oklch(0.60 0.10 55);
+
+  /* Sidebar: deep espresso */
+  --color-sidebar-background: oklch(0.20 0.03 45);
+  --color-sidebar-foreground: oklch(0.88 0.01 70);
+  --color-sidebar-primary: oklch(0.75 0.10 70);
+  --color-sidebar-primary-foreground: oklch(0.15 0.03 45);
+  --color-sidebar-accent: oklch(0.28 0.03 45);
+  --color-sidebar-accent-foreground: oklch(0.92 0.01 70);
+  --color-sidebar-border: oklch(0.28 0.025 45);
+  --color-sidebar-ring: oklch(0.75 0.10 70);
+
+  --radius-lg: 0.75rem;
+  --radius-md: calc(var(--radius-lg) - 2px);
+  --radius-sm: calc(var(--radius-lg) - 4px);
+
+  /* Custom colors for reuse */
+  --color-brass: oklch(0.72 0.12 70);
+  --color-walnut: oklch(0.42 0.06 50);
+  --color-espresso: oklch(0.20 0.03 45);
+  --color-cream: oklch(0.96 0.008 80);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+  h1, h2, h3 {
+    font-family: "DM Serif Display", serif;
+    letter-spacing: -0.01em;
+  }
+  .font-mono, code, pre, textarea.font-mono {
+    font-family: "JetBrains Mono", monospace;
+  }
+  .font-display {
+    font-family: "DM Serif Display", serif;
+  }
+  .font-body {
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+}
+
+/* Subtle grain texture overlay on the background */
+@layer utilities {
+  .bg-grain {
+    position: relative;
+  }
+  .bg-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* Staggered fade-in animation */
+  .animate-fade-up {
+    animation: fadeUp 0.5s ease-out both;
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Floating animation for landing page decorative elements */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-12px);
+    }
+  }
+
+  /* Animated gradient shift for text and backgrounds */
+  .animate-gradient {
+    background-size: 200% auto;
+    animation: gradientShift 4s ease infinite;
+  }
+
+  @keyframes gradientShift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  /* Subtle pulse glow for decorative elements */
+  .animate-pulse-glow {
+    animation: pulseGlow 3s ease-in-out infinite;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.05);
+    }
+  }
+
+  /* CTA button glow pulse */
+  .animate-cta-glow {
+    animation: ctaGlow 3s ease-in-out infinite;
+  }
+
+  @keyframes ctaGlow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(180, 140, 60, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(180, 140, 60, 0.55), 0 0 60px rgba(180, 140, 60, 0.2);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
