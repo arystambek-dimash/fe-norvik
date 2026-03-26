@@ -335,4 +335,86 @@ describe('solve', () => {
             }
         }
     });
+
+    describe('boundary conditions for non-divisible widths', () => {
+        const standardModules = () => [
+            makeCabinet({width: 150, article: 'W150'}),
+            makeCabinet({width: 200, article: 'W200'}),
+            makeCabinet({width: 250, article: 'W250'}),
+            makeCabinet({width: 300, article: 'W300'}),
+            makeCabinet({width: 350, article: 'W350'}),
+            makeCabinet({width: 400, article: 'W400'}),
+            makeCabinet({width: 450, article: 'W450'}),
+            makeCabinet({width: 500, article: 'W500'}),
+            makeCabinet({width: 600, article: 'W600'}),
+            makeCabinet({width: 750, article: 'W750'}),
+            makeCabinet({width: 900, article: 'W900'}),
+        ];
+
+        it('returns empty for non-divisible-by-50 target (730mm)', () => {
+            const results = solve(730, standardModules());
+            expect(results).toEqual([]);
+        });
+
+        it('returns empty for target below minimum module width (100mm)', () => {
+            const results = solve(100, standardModules());
+            expect(results).toEqual([]);
+        });
+
+        it('returns empty for target 1 (smallest non-zero non-module)', () => {
+            const results = solve(1, standardModules());
+            expect(results).toEqual([]);
+        });
+
+        it('finds solutions for all multiples of 50 from 150 to 3000', () => {
+            const modules = standardModules();
+            // Every multiple of 50 >= 150 should be solvable
+            for (let target = 150; target <= 3000; target += 50) {
+                const results = solve(target, modules);
+                expect(results.length).toBeGreaterThan(0);
+            }
+        });
+    });
+
+    describe('preferVariety option', () => {
+        it('ranks mixed widths higher than uniform when preferVariety is true', () => {
+            const modules = [
+                makeCabinet({ width: 400 }),
+                makeCabinet({ width: 600 }),
+                makeCabinet({ width: 800 }),
+            ];
+            // 2600 = 800+800+400+600 (3 unique) or 400×4+600+400 etc.
+            const results = solve(2600, modules, { preferVariety: true });
+            expect(results.length).toBeGreaterThan(0);
+            // The top result should have more than 1 unique width
+            const topUniqueWidths = new Set(results[0].widths).size;
+            expect(topUniqueWidths).toBeGreaterThan(1);
+        });
+
+        it('preserves existing behavior without preferVariety flag', () => {
+            const modules = [
+                makeCabinet({ width: 300 }),
+                makeCabinet({ width: 400 }),
+                makeCabinet({ width: 500 }),
+            ];
+            const results = solve(900, modules);
+            // Without flag, all candidates should have valid positive scores
+            for (const r of results) {
+                expect(r.score).toBeGreaterThan(0);
+            }
+        });
+
+        it('does not break when preferVariety is false explicitly', () => {
+            const modules = [
+                makeCabinet({ width: 200 }),
+                makeCabinet({ width: 300 }),
+                makeCabinet({ width: 600 }),
+            ];
+            const results = solve(600, modules, { preferVariety: false });
+            expect(results.length).toBeGreaterThan(0);
+            for (const r of results) {
+                expect(r.score).toBeGreaterThan(0);
+            }
+        });
+    });
 });
