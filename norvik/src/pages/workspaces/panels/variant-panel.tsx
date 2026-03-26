@@ -4,33 +4,61 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RefreshCw, ChevronDown, ChevronUp, Layers } from "lucide-react";
-import type { SolverVariant, ScoreBreakdown } from "@/algorithm/types";
+import type { SolverVariant, ScoreBreakdown, CategoryDetail } from "@/algorithm/types";
+import { CATEGORY_WEIGHTS } from "@/algorithm/scoring";
 
 interface VariantPanelProps {
   onRegenerate: () => void;
 }
 
-function ScoreBreakdownView({ breakdown }: { breakdown: ScoreBreakdown }) {
-  const entries: { label: string; key: keyof ScoreBreakdown }[] = [
-    { label: "Width Consistency", key: "widthConsistency" },
-    { label: "Module Sweet Spot", key: "moduleSweetSpot" },
-    { label: "Ergonomic Placement", key: "ergonomicPlacement" },
-    { label: "Filler Penalty", key: "fillerPenalty" },
-    { label: "Symmetry", key: "symmetry" },
-    { label: "Aesthetic Grouping", key: "aestheticGrouping" },
-    { label: "Visual Composition", key: "visualComposition" },
-    { label: "Working Triangle", key: "workingTriangle" },
-    { label: "Upper Coverage", key: "upperCoverage" },
-    { label: "Corner Fit", key: "cornerFit" },
-  ];
+type CategoryKey = keyof typeof CATEGORY_WEIGHTS;
+
+const CATEGORY_LABELS: { key: CategoryKey; label: string }[] = [
+  { key: "ergonomics", label: "Ergonomics" },
+  { key: "workflow", label: "Workflow" },
+  { key: "aesthetics", label: "Aesthetics" },
+  { key: "manufacturability", label: "Manufacturability" },
+  { key: "preferences", label: "Preferences" },
+];
+
+function CategoryRow({ label, weightPct, detail }: { label: string; weightPct: number; detail: CategoryDetail }) {
+  const [expanded, setExpanded] = useState(false);
+  const subEntries = Object.entries(detail.subMetrics);
 
   return (
-    <div className="mt-2 space-y-1 border-t border-border/40 pt-2">
-      {entries.map(({ label, key }) => (
-        <div key={key} className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{label}</span>
-          <span className="font-mono">{(breakdown[key] ?? 0).toFixed(1)}</span>
+    <div>
+      <button
+        type="button"
+        onClick={() => subEntries.length > 0 && setExpanded(!expanded)}
+        className="flex w-full items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span>{label} <span className="opacity-50">({weightPct}%)</span></span>
+        <span className="font-mono">{detail.score.toFixed(1)}</span>
+      </button>
+      {expanded && subEntries.length > 0 && (
+        <div className="ml-3 mt-0.5 space-y-0.5">
+          {subEntries.map(([name, value]) => (
+            <div key={name} className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+              <span>{name}</span>
+              <span className="font-mono">{value.toFixed(1)}</span>
+            </div>
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function ScoreBreakdownView({ breakdown }: { breakdown: ScoreBreakdown }) {
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-border/40 pt-2">
+      {!breakdown.hardConstraintsPassed && (
+        <div className="text-xs text-destructive font-medium">
+          Hard constraints violated
+        </div>
+      )}
+      {CATEGORY_LABELS.map(({ key, label }) => (
+        <CategoryRow key={key} label={label} weightPct={CATEGORY_WEIGHTS[key] * 100} detail={breakdown[key]} />
       ))}
     </div>
   );

@@ -127,13 +127,63 @@ function createBacksplash(width: number, position: THREE.Vector3, rotation?: THR
   return mesh;
 }
 
+// ── Text labels ─────────────────────────────────────────────
+
+/** Create a canvas texture with text for use as a billboard label. */
+function createLabelTexture(text: string, bgColor = 'rgba(0,0,0,0.7)', fgColor = '#fff'): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+
+  const fontSize = 28;
+  const padding = 12;
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+  const metrics = ctx.measureText(text);
+  const textWidth = metrics.width;
+
+  canvas.width = textWidth + padding * 2;
+  canvas.height = fontSize + padding * 2;
+
+  // Background pill
+  ctx.fillStyle = bgColor;
+  const r = 6;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, canvas.width, canvas.height, r);
+  ctx.fill();
+
+  // Text
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+  ctx.fillStyle = fgColor;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  return texture;
+}
+
+/** Create a billboard sprite label positioned at (x, y, z). */
+function createLabel(text: string, x: number, y: number, z: number, bgColor?: string, fgColor?: string): THREE.Sprite {
+  const texture = createLabelTexture(text, bgColor, fgColor);
+  const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.name = `label-${text}`;
+
+  // Scale sprite proportional to canvas aspect ratio
+  const aspect = texture.image.width / texture.image.height;
+  const labelHeight = 0.06; // meters
+  sprite.scale.set(labelHeight * aspect, labelHeight, 1);
+  sprite.position.set(x, y, z);
+  return sprite;
+}
+
 // ── Module placement ────────────────────────────────────────
 
 /**
  * Create the 3D object for a module based on its type.
  */
 function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Mesh; depth: number } {
-  const isUpper = mod.type === 'upper';
+  const isUpper = mod.type === 'upper' || mod.type === 'antresol';
   const depth = mod.depth || (isUpper ? UPPER_DEPTH : 560);
 
   if (mod.type === 'filler') {
@@ -160,6 +210,12 @@ function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Me
 /**
  * Place a module on the back wall (along X axis).
  */
+function getModuleY(mod: PlacedModule): number {
+  if (mod.yOffset != null) return mm(mod.yOffset);
+  if (mod.type === 'upper') return mm(UPPER_Y);
+  return 0;
+}
+
 function placeBackWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
   const xPos = mm(mod.x + mod.width / 2);
   const { object, depth } = createModuleObject(mod);
@@ -167,8 +223,7 @@ function placeBackWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
   if (mod.type === 'filler') {
     object.position.x = xPos;
   } else {
-    const y = mod.type === 'upper' ? mm(UPPER_Y) : 0;
-    object.position.set(xPos, y, mm(depth) / 2);
+    object.position.set(xPos, getModuleY(mod), mm(depth) / 2);
   }
 
   return object;
@@ -184,8 +239,7 @@ function placeLeftWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
   if (mod.type === 'filler') {
     object.position.set(0, 0, zPos);
   } else {
-    const y = mod.type === 'upper' ? mm(UPPER_Y) : 0;
-    object.position.set(mm(depth) / 2, y, zPos);
+    object.position.set(mm(depth) / 2, getModuleY(mod), zPos);
   }
 
   object.rotation.y = -Math.PI / 2;
@@ -245,88 +299,116 @@ function removeSceneObjectByName(scene: THREE.Scene, name: string): void {
   scene.remove(obj);
 }
 
-function loadGlbModule(
-    mod: PlacedModule,
-    scene: THREE.Scene,
-    wall: 'back' | 'left' | 'corner',
-): Promise<void> {
-  if (!mod.glbFile) return Promise.resolve();
+interface ScaledGlb {
+  model: THREE.Group;
+  scaledSize: THREE.Vector3;
+}
 
-  const url = proxyGlbUrl(mod.glbFile);
-
+/**
+ * Load a GLB, scale it to targetWidth, and center the model at origin.
+ * Returns null if the model has invalid geometry.
+ */
+function loadAndScaleGlb(
+  url: string,
+  targetWidth: number,
+  label: string,
+): Promise<ScaledGlb | null> {
   return new Promise((resolve) => {
     gltfLoader.load(
-        url,
-        (gltf) => {
-          const model = gltf.scene;
-          const isUpper = mod.type === 'upper';
-          const targetW = mm(mod.width);
+      url,
+      (gltf) => {
+        const model = gltf.scene;
+        enableShadows(model);
 
-          // На случай повторной загрузки того же модуля
-          removeSceneObjectByName(scene, `glb-${mod.id}`);
+        const rawSize = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+        if (!Number.isFinite(rawSize.x) || rawSize.x <= 1e-6) {
+          console.warn(`[GLB] Invalid raw width for ${label}`, rawSize);
+          resolve(null);
+          return;
+        }
 
-          enableShadows(model);
+        model.scale.setScalar(targetWidth / rawSize.x);
 
-          // Сырым bbox меряем до scale
-          const rawBox = new THREE.Box3().setFromObject(model);
-          const rawSize = rawBox.getSize(new THREE.Vector3());
+        const scaledBox = new THREE.Box3().setFromObject(model);
+        const scaledSize = scaledBox.getSize(new THREE.Vector3());
+        const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
 
-          if (!Number.isFinite(rawSize.x) || rawSize.x <= 1e-6) {
-            console.warn(`[GLB] Invalid raw width for ${mod.id}`, rawSize);
-            resolve();
-            return;
-          }
+        model.position.set(
+          model.position.x - scaledCenter.x,
+          model.position.y - scaledBox.min.y,
+          model.position.z - scaledCenter.z,
+        );
 
-          // Подгоняем ширину модели под ширину модуля
-          const uniformScale = targetW / rawSize.x;
-          model.scale.setScalar(uniformScale);
-
-          // После scale пересчитываем bbox
-          const scaledBox = new THREE.Box3().setFromObject(model);
-          const scaledSize = scaledBox.getSize(new THREE.Vector3());
-          const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-
-          // Центруем модель относительно wrapper:
-          // x/z по центру, y ставим на пол
-          model.position.set(
-              model.position.x - scaledCenter.x,
-              model.position.y - scaledBox.min.y,
-              model.position.z - scaledCenter.z,
-          );
-
-          const wrapper = new THREE.Group();
-          wrapper.name = `glb-${mod.id}`;
-          wrapper.userData = {
-            moduleId: mod.id,
-            type: mod.type,
-            wall,
-            glbFile: mod.glbFile,
-          };
-          wrapper.add(model);
-
-          const y = isUpper ? mm(UPPER_Y) : 0;
-
-          if (wall === 'corner') {
-            wrapper.position.set(0, y, 0);
-          } else if (wall === 'left') {
-            const zPos = mm(mod.x + mod.width / 2);
-            wrapper.position.set(scaledSize.z / 2, y, zPos);
-            wrapper.rotation.y = -Math.PI / 2;
-          } else {
-            const xPos = mm(mod.x + mod.width / 2);
-            wrapper.position.set(xPos, y, scaledSize.z / 2);
-          }
-
-          scene.add(wrapper);
-          resolve();
-        },
-        undefined,
-        (err) => {
-          console.warn(`[GLB] Failed to load ${mod.id} from ${url}`, err);
-          resolve();
-        },
+        resolve({ model, scaledSize });
+      },
+      undefined,
+      (err) => {
+        console.warn(`[GLB] Failed to load ${label} from ${url}`, err);
+        resolve(null);
+      },
     );
   });
+}
+
+async function loadGlbModule(
+  mod: PlacedModule,
+  scene: THREE.Scene,
+  wall: 'back' | 'left' | 'corner',
+): Promise<void> {
+  if (!mod.glbFile) return;
+
+  const result = await loadAndScaleGlb(proxyGlbUrl(mod.glbFile), mm(mod.width), mod.id);
+  if (!result) return;
+
+  removeSceneObjectByName(scene, `glb-${mod.id}`);
+
+  const wrapper = new THREE.Group();
+  wrapper.name = `glb-${mod.id}`;
+  wrapper.userData = { moduleId: mod.id, type: mod.type, wall, glbFile: mod.glbFile };
+  wrapper.add(result.model);
+
+  const y = getModuleY(mod);
+
+  if (wall === 'corner') {
+    wrapper.position.set(0, y, 0);
+  } else if (wall === 'left') {
+    wrapper.position.set(result.scaledSize.z / 2, y, mm(mod.x + mod.width / 2));
+    wrapper.rotation.y = -Math.PI / 2;
+  } else {
+    wrapper.position.set(mm(mod.x + mod.width / 2), y, result.scaledSize.z / 2);
+  }
+  wrapper.rotation.y = Math.PI;
+  scene.add(wrapper);
+}
+
+async function loadApplianceGlb(
+  anchor: Anchor,
+  placeholderName: string,
+  scene: THREE.Scene,
+  wall: 'back' | 'left',
+): Promise<void> {
+  if (!anchor.glbFile) return;
+
+  const result = await loadAndScaleGlb(proxyGlbUrl(anchor.glbFile), mm(anchor.width), `appliance-${anchor.type}`);
+  if (!result) return;
+
+  removeSceneObjectByName(scene, placeholderName);
+
+  const wrapper = new THREE.Group();
+  wrapper.name = placeholderName;
+  wrapper.add(result.model);
+
+  const depthZ = mm(280);
+
+  if (wall === 'left') {
+    wrapper.position.set(depthZ, 0, mm(anchor.position + anchor.width / 2));
+    wrapper.rotation.y = -Math.PI / 2;
+  } else {
+    wrapper.position.set(mm(anchor.position + anchor.width / 2), 0, depthZ);
+    wrapper.rotation.y = Math.PI;
+  }
+
+  scene.add(wrapper);
 }
 
 // ── Main builder ────────────────────────────────────────────
@@ -424,6 +506,9 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
   // ── Place cabinets ──
 
+  /** Label Y offset above the module top (meters). */
+  const LABEL_PAD = 0.05;
+
   for (let wi = 0; wi < plan.walls.length; wi++) {
     const wallPlan = plan.walls[wi];
     const isLeftWall = isLShaped && wi === 1;
@@ -431,10 +516,20 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
     for (const mod of wallPlan.modules) {
       if (mod.glbFile) {
         glbCandidates.push({ mod, wall: isLeftWall ? 'left' : 'back' });
-        continue;
+      } else {
+        scene.add(isLeftWall ? placeLeftWallModule(mod) : placeBackWallModule(mod));
       }
 
-      scene.add(isLeftWall ? placeLeftWallModule(mod) : placeBackWallModule(mod));
+      // Add article label above every module
+      if (mod.article) {
+        const labelY = mm(mod.yOffset ?? (mod.type === 'upper' ? UPPER_Y : 0)) + mm(mod.height) + LABEL_PAD;
+        const depthZ = mm((mod.depth || (mod.type === 'upper' || mod.type === 'antresol' ? UPPER_DEPTH : 560)) / 2);
+        if (isLeftWall) {
+          scene.add(createLabel(mod.article, depthZ, labelY, mm(mod.x + mod.width / 2)));
+        } else {
+          scene.add(createLabel(mod.article, mm(mod.x + mod.width / 2), labelY, depthZ));
+        }
+      }
     }
   }
 
@@ -444,18 +539,23 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
     for (const cornerMod of plan.cornerModules) {
       if (cornerMod.glbFile) {
         glbCandidates.push({ mod: cornerMod, wall: 'corner' });
-        continue;
+      } else {
+        const cornerGroup = createCornerCabinet(
+          cornerMod.width,
+          cornerMod.depth,
+          cornerMod.height,
+        );
+
+        cornerGroup.position.set(0, 0, 0);
+        cornerGroup.userData = { moduleId: cornerMod.id, type: 'corner' };
+        scene.add(cornerGroup);
       }
 
-      const cornerGroup = createCornerCabinet(
-        cornerMod.width,
-        cornerMod.depth,
-        cornerMod.height,
-      );
-
-      cornerGroup.position.set(0, 0, 0);
-      cornerGroup.userData = { moduleId: cornerMod.id, type: 'corner' };
-      scene.add(cornerGroup);
+      // Corner label
+      if (cornerMod.article) {
+        const labelY = mm(cornerMod.height) + LABEL_PAD;
+        scene.add(createLabel(cornerMod.article, mm(cornerMod.width / 2), labelY, mm(cornerMod.depth / 2)));
+      }
     }
   }
 
@@ -501,6 +601,9 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
   }
 
   // ── Place appliances (sink, cooktop) on countertop at anchor positions ──
+  // Anchors with glbFile get async-loaded; procedural models serve as placeholders.
+  const applianceGlbQueue: { anchor: Anchor; name: string; wall: 'back' | 'left' }[] = [];
+
   if (wallAnchors && wallAnchors.length > 0) {
     const ctTop = mm(COUNTERTOP_TOP_MM);
     const CT_DEPTH_Z = mm(280);
@@ -509,13 +612,10 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
       const isLeftWall = isLShaped && wi === 1;
 
       for (const anchor of wa.anchors) {
-        // Skip procedural appliance if the module at this position has a GLB
-        const wallModules = plan.walls[wi]?.modules ?? [];
-        const anchorCenter = anchor.position + anchor.width / 2;
+        const applianceName = `appliance-${anchor.type}-${wi}`;
 
-
+        // Procedural placeholder
         let appliance: THREE.Group | null = null;
-
         if (anchor.type === 'sink') {
           appliance = createSink(anchor.width);
         } else if (anchor.type === 'cooktop') {
@@ -533,8 +633,28 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
           appliance.position.set(xPos, ctTop, CT_DEPTH_Z);
         }
 
-        appliance.name = `appliance-${anchor.type}-${wi}`;
+        appliance.name = applianceName;
         scene.add(appliance);
+
+        // Anchor type label above appliance
+        const anchorLabel = anchor.type.charAt(0).toUpperCase() + anchor.type.slice(1);
+        const anchorLabelY = ctTop + mm(60);
+        if (isLeftWall) {
+          const zPos = mm(anchor.position + anchor.width / 2);
+          scene.add(createLabel(anchorLabel, CT_DEPTH_Z, anchorLabelY, zPos, 'rgba(30,100,200,0.8)'));
+        } else {
+          const xPos = mm(anchor.position + anchor.width / 2);
+          scene.add(createLabel(anchorLabel, xPos, anchorLabelY, CT_DEPTH_Z, 'rgba(30,100,200,0.8)'));
+        }
+
+        // Queue GLB replacement if catalog model available
+        if (anchor.glbFile) {
+          applianceGlbQueue.push({
+            anchor,
+            name: applianceName,
+            wall: isLeftWall ? 'left' : 'back',
+          });
+        }
       }
     }
   }
@@ -544,10 +664,16 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
   // Async GLB loader — replaces procedural placeholders with real models
   const loadGlbModels = async (): Promise<void> => {
-    const promises = glbCandidates.map(({ mod, wall }) =>
+    const cabinetPromises = glbCandidates.map(({ mod, wall }) =>
       loadGlbModule(mod, scene, wall),
     );
-    await Promise.all(promises);
+
+    // Load appliance GLBs from catalog, replacing procedural placeholders
+    const appliancePromises = applianceGlbQueue.map(({ anchor, name, wall }) =>
+      loadApplianceGlb(anchor, name, scene, wall),
+    );
+
+    await Promise.all([...cabinetPromises, ...appliancePromises]);
   };
 
   return { scene, loadGlbModels };

@@ -36,6 +36,11 @@ export interface SerializablePlannerState {
   walls: WallConfig[];
   selectedCatalogId: number | null;
   goldenRules: GoldenRule[];
+  floorToCeiling: boolean;
+  useSidePanel200: boolean;
+  useHood: boolean;
+  sinkModuleWidth: 600 | 800;
+  drawerHousingWidth: 400 | 600;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -51,6 +56,11 @@ interface SerializedWorkspaceContent {
   walls: WallConfig[];
   selectedCatalogId: number | null;
   goldenRules: GoldenRule[];
+  floorToCeiling: boolean;
+  useSidePanel200: boolean;
+  useHood: boolean;
+  sinkModuleWidth: 600 | 800;
+  drawerHousingWidth: 400 | 600;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -66,6 +76,11 @@ const DEFAULTS: SerializablePlannerState = {
   walls: [],
   selectedCatalogId: null,
   goldenRules: [],
+  floorToCeiling: false,
+  useSidePanel200: false,
+  useHood: false,
+  sinkModuleWidth: 600,
+  drawerHousingWidth: 400,
   variants: [],
   selectedVariantIndex: 0,
 };
@@ -92,6 +107,11 @@ export function serializeState(
     walls: state.walls,
     selectedCatalogId: state.selectedCatalogId,
     goldenRules: state.goldenRules,
+    floorToCeiling: state.floorToCeiling,
+    useSidePanel200: state.useSidePanel200,
+    useHood: state.useHood,
+    sinkModuleWidth: state.sinkModuleWidth,
+    drawerHousingWidth: state.drawerHousingWidth,
     variants: state.variants,
     selectedVariantIndex: state.selectedVariantIndex,
   };
@@ -232,6 +252,27 @@ export function deserializeState(
   } else {
     result.goldenRules = DEFAULTS.goldenRules;
   }
+
+  // Floor-to-ceiling
+  result.floorToCeiling = content.floorToCeiling === true;
+
+  // СБ 200 side panels
+  result.useSidePanel200 = content.useSidePanel200 === true;
+
+  // Hood above cooktop
+  result.useHood = content.useHood === true;
+
+  // Sink module width
+  result.sinkModuleWidth =
+    content.sinkModuleWidth === 600 || content.sinkModuleWidth === 800
+      ? content.sinkModuleWidth
+      : DEFAULTS.sinkModuleWidth;
+
+  // Drawer housing width
+  result.drawerHousingWidth =
+    content.drawerHousingWidth === 400 || content.drawerHousingWidth === 600
+      ? content.drawerHousingWidth
+      : DEFAULTS.drawerHousingWidth;
 
   // Variants (opaque data — accept arrays as-is)
   result.variants = Array.isArray(content.variants)

@@ -461,7 +461,7 @@ export function createSink(width: number): THREE.Group {
   spout.position.set(0, mm(240), -basinD / 2 + mm(25));
   spout.castShadow = true;
   group.add(spout);
-
+  group.rotation.y += Math.PI;
   return group;
 }
 
@@ -512,6 +512,7 @@ export function createCooktop(width: number): THREE.Group {
     ring.position.set(x, surfaceH + mm(2), z);
     group.add(ring);
   }
+  group.rotation.y += Math.PI;
 
   return group;
 }
