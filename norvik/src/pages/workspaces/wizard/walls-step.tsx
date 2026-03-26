@@ -3,13 +3,17 @@ import { usePlannerStore } from "@/stores/planner-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Plus, Trash2, CookingPot, Droplets, Flame } from "lucide-react";
+import { SINK_COOKTOP_GAP_GRID } from "@/algorithm/constants";
+import { snapToGrid } from "@/algorithm/segmenter";
 
 interface Anchor {
   type: "sink" | "cooktop" | "oven";
   position: number;
   width: number;
+  glbFile?: string | null;
 }
 
 interface WallConfig {
@@ -62,13 +66,35 @@ function isOutOfBounds(anchor: Anchor, wallLength: number): boolean {
   return anchor.position < 0 || anchor.position + anchor.width > wallLength;
 }
 
+function hasInvalidGap(anchors: Anchor[], index: number, drawerHousingWidth: number): boolean {
+  const a = anchors[index];
+  if (a.type !== "sink" && a.type !== "cooktop") return false;
+  const counterType = a.type === "sink" ? "cooktop" : "sink";
+  const aEnd = a.position + a.width;
+  const minGapAligned = Math.ceil(drawerHousingWidth / SINK_COOKTOP_GAP_GRID) * SINK_COOKTOP_GAP_GRID;
+  for (let i = 0; i < anchors.length; i++) {
+    if (i === index) continue;
+    const b = anchors[i];
+    if (b.type !== counterType) continue;
+    const bEnd = b.position + b.width;
+    // Gap = distance between the two non-overlapping edges
+    const gap = Math.max(b.position - aEnd, a.position - bEnd);
+    if (gap < 0) continue;
+    if (gap < minGapAligned) return true;
+    if (gap % SINK_COOKTOP_GAP_GRID !== 0) return true;
+  }
+  return false;
+}
+
 function WallDiagram({
   wall,
+  drawerHousingWidth,
   onUpdateAnchor,
   onRemoveAnchor,
   onAddAnchor,
 }: {
   wall: WallConfig;
+  drawerHousingWidth: number;
   onUpdateAnchor: (
     wallId: string,
     anchorIdx: number,
@@ -118,7 +144,8 @@ function WallDiagram({
             const width = Math.max(8, anchor.width * scale);
             const overlap = hasOverlap(wall.anchors, idx);
             const outOfBounds = isOutOfBounds(anchor, wall.length);
-            const hasError = overlap || outOfBounds;
+            const tooClose = hasInvalidGap(wall.anchors, idx, drawerHousingWidth);
+            const hasError = overlap || outOfBounds || tooClose;
 
             return (
               <div
@@ -151,6 +178,7 @@ function WallDiagram({
           {wall.anchors.map((anchor, idx) => {
             const overlap = hasOverlap(wall.anchors, idx);
             const outOfBounds = isOutOfBounds(anchor, wall.length);
+            const tooClose = hasInvalidGap(wall.anchors, idx, drawerHousingWidth);
             const AnchorIcon =
               anchorTypes.find((t) => t.type === anchor.type)?.icon ?? Droplets;
 
@@ -159,7 +187,7 @@ function WallDiagram({
                 key={idx}
                 className={cn(
                   "flex flex-wrap items-center gap-3 rounded-lg border p-3",
-                  overlap || outOfBounds
+                  overlap || outOfBounds || tooClose
                     ? "border-destructive/50 bg-destructive/5"
                     : getAnchorBorder(anchor.type) + " bg-card"
                 )}
@@ -177,10 +205,11 @@ function WallDiagram({
                   </Label>
                   <Input
                     type="number"
+                    step={50}
                     value={anchor.position}
                     onChange={(e) =>
                       onUpdateAnchor(wall.id, idx, {
-                        position: parseInt(e.target.value, 10) || 0,
+                        position: Math.max(0, snapToGrid(parseInt(e.target.value, 10) || 0)),
                       })
                     }
                     className="h-8 w-24 text-center text-sm"
@@ -194,10 +223,11 @@ function WallDiagram({
                   </Label>
                   <Input
                     type="number"
+                    step={50}
                     value={anchor.width}
                     onChange={(e) =>
                       onUpdateAnchor(wall.id, idx, {
-                        width: parseInt(e.target.value, 10) || 0,
+                        width: Math.max(50, snapToGrid(parseInt(e.target.value, 10) || 0)),
                       })
                     }
                     className="h-8 w-24 text-center text-sm"
@@ -225,6 +255,11 @@ function WallDiagram({
                     Extends beyond wall bounds
                   </p>
                 )}
+                {tooClose && (
+                  <p className="w-full text-xs text-destructive">
+                    Мин. расстояние между мойкой и варочной — {Math.ceil(drawerHousingWidth / SINK_COOKTOP_GAP_GRID) * SINK_COOKTOP_GAP_GRID} мм (кратно {SINK_COOKTOP_GAP_GRID})
+                  </p>
+                )}
               </div>
             );
           })}
@@ -240,8 +275,59 @@ function WallDiagram({
   );
 }
 
+function FeatureToggle({ label, description, checked, onChange }: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4">
+      <div>
+        <Label className="text-sm font-medium">{label}</Label>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function WidthSelector<T extends number>({ label, description, options, value, onChange }: {
+  label: string;
+  description: string;
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4">
+      <div>
+        <Label className="text-sm font-medium">{label}</Label>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="flex gap-1 rounded-lg border border-border/60 p-0.5">
+        {options.map((w) => (
+          <button
+            key={w}
+            type="button"
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              value === w
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+            )}
+            onClick={() => onChange(w)}
+          >
+            {w}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WallsStep() {
-  const { roomWidth, roomDepth, layoutType, walls, setWalls } =
+  const { roomWidth, roomDepth, layoutType, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth } =
     usePlannerStore();
 
   // Auto-generate walls when room config changes
@@ -257,43 +343,62 @@ export function WallsStep() {
 
   // Sync generated walls with store, preserving existing anchors
   useEffect(() => {
+    // Read walls directly from store to avoid stale closure
+    const currentWalls = usePlannerStore.getState().walls;
     const merged = generatedWalls.map((gw) => {
-      const existing = walls.find((w) => w.id === gw.id);
+      const existing = currentWalls.find((w) => w.id === gw.id);
       return existing
         ? { ...gw, anchors: existing.anchors }
         : gw;
     });
     // Only update if wall structure actually changed
-    const wallIds = walls.map((w) => w.id).join(",");
+    const wallIds = currentWalls.map((w) => w.id).join(",");
     const mergedIds = merged.map((w) => w.id).join(",");
     const lengthsChanged = merged.some(
-      (w) => walls.find((ew) => ew.id === w.id)?.length !== w.length
+      (w) => currentWalls.find((ew) => ew.id === w.id)?.length !== w.length
     );
     if (wallIds !== mergedIds || lengthsChanged) {
       setWalls(merged);
     }
-  }, [generatedWalls, setWalls]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [generatedWalls, setWalls]);
+
+  // When sink module width changes, update all existing sink anchor widths
+  const handleSinkModuleWidthChange = useCallback(
+    (newWidth: 600 | 800) => {
+      setSinkModuleWidth(newWidth);
+      const updated = walls.map((w) => ({
+        ...w,
+        anchors: w.anchors.map((a) =>
+          a.type === "sink" ? { ...a, width: newWidth } : a,
+        ),
+      }));
+      setWalls(updated);
+    },
+    [walls, setWalls, setSinkModuleWidth],
+  );
 
   const handleAddAnchor = useCallback(
     (wallId: string, type: Anchor["type"]) => {
       const updated = walls.map((w) => {
         if (w.id !== wallId) return w;
-        // Place new anchor at end of last anchor, or at 0
+        // Place new anchor at end of last anchor (snapped to 50mm grid), or at 0
         const lastEnd = w.anchors.reduce(
           (max, a) => Math.max(max, a.position + a.width),
           0
         );
+        const snappedPosition = snapToGrid(lastEnd);
+        const width = type === "sink" ? sinkModuleWidth : 600;
         return {
           ...w,
           anchors: [
             ...w.anchors,
-            { type, position: lastEnd, width: 600 },
+            { type, position: snappedPosition, width },
           ],
         };
       });
       setWalls(updated);
     },
-    [walls, setWalls]
+    [walls, setWalls, sinkModuleWidth]
   );
 
   const handleUpdateAnchor = useCallback(
@@ -337,11 +442,47 @@ export function WallsStep() {
         </p>
       </div>
 
+      <div className="space-y-3">
+        <FeatureToggle
+          label="До потолка"
+          description="Добавить антресоли до потолка над высокими модулями"
+          checked={floorToCeiling}
+          onChange={setFloorToCeiling}
+        />
+        <FeatureToggle
+          label="СБ 200"
+          description="Ставить СБ 200 рядом с посудомойкой и варочной поверхностью"
+          checked={useSidePanel200}
+          onChange={setUseSidePanel200}
+        />
+        <FeatureToggle
+          label="Вытяжка"
+          description="Оставить место для вытяжки над варочной поверхностью"
+          checked={useHood}
+          onChange={setUseHood}
+        />
+        <WidthSelector
+          label="СМ (мойка)"
+          description="Ширина модуля под мойку"
+          options={[600, 800] as const}
+          value={sinkModuleWidth}
+          onChange={handleSinkModuleWidthChange}
+        />
+        <WidthSelector
+          label="СЯШ (выдвижной ящик)"
+          description="Ширина модуля выдвижного ящика"
+          options={[400, 600] as const}
+          value={drawerHousingWidth}
+          onChange={setDrawerHousingWidth}
+        />
+      </div>
+
       <div className="space-y-6">
         {walls.map((wall) => (
           <WallDiagram
             key={wall.id}
             wall={wall}
+            drawerHousingWidth={drawerHousingWidth}
             onUpdateAnchor={handleUpdateAnchor}
             onRemoveAnchor={handleRemoveAnchor}
             onAddAnchor={handleAddAnchor}

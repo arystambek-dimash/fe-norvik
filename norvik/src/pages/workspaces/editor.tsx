@@ -19,6 +19,7 @@ import type { KitchenStoreState } from "@/algorithm/derive-input";
 import { deriveInput } from "@/algorithm";
 import type { SolverVariant } from "@/algorithm/types";
 import type { WallAnchors } from "@/components/viewer3d/scene-builder";
+import { ANCHOR_TO_KIND, buildGlbByKindMap } from "@/algorithm/constants";
 
 export default function WorkspaceEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +39,7 @@ export default function WorkspaceEditorPage() {
   const selectedVariantIndex = usePlannerStore((s) => s.selectedVariantIndex);
   const selectedModuleId = usePlannerStore((s) => s.selectedModuleId);
   const setVariants = usePlannerStore((s) => s.setVariants);
+  const modules = usePlannerStore((s) => s.modules);
   const setSelectedModuleId = usePlannerStore((s) => s.setSelectedModuleId);
   const reset = usePlannerStore((s) => s.reset);
 
@@ -63,6 +65,16 @@ export default function WorkspaceEditorPage() {
       if (restored.selectedCatalogId !== undefined)
         store.setSelectedCatalogId(restored.selectedCatalogId);
       if (restored.goldenRules) store.setGoldenRules(restored.goldenRules);
+      if (restored.floorToCeiling !== undefined)
+        store.setFloorToCeiling(restored.floorToCeiling);
+      if (restored.useSidePanel200 !== undefined)
+        store.setUseSidePanel200(restored.useSidePanel200);
+      if (restored.useHood !== undefined)
+        store.setUseHood(restored.useHood);
+      if (restored.sinkModuleWidth !== undefined)
+        store.setSinkModuleWidth(restored.sinkModuleWidth);
+      if (restored.drawerHousingWidth !== undefined)
+        store.setDrawerHousingWidth(restored.drawerHousingWidth);
       if (restored.variants) store.setVariants(restored.variants);
       if (restored.selectedVariantIndex !== undefined)
         store.setSelectedVariantIndex(restored.selectedVariantIndex);
@@ -102,6 +114,11 @@ export default function WorkspaceEditorPage() {
       walls: state.walls,
       selectedCatalogId: state.selectedCatalogId,
       goldenRules: state.goldenRules,
+      floorToCeiling: state.floorToCeiling,
+      useSidePanel200: state.useSidePanel200,
+      useHood: state.useHood,
+      sinkModuleWidth: state.sinkModuleWidth,
+      drawerHousingWidth: state.drawerHousingWidth,
       variants: state.variants,
       selectedVariantIndex: state.selectedVariantIndex,
     });
@@ -111,7 +128,6 @@ export default function WorkspaceEditorPage() {
   // ---- Generate plan ----
   const handleGenerate = useCallback(() => {
     setIsGenerating(true);
-    // Defer computation so React can paint the loading spinner first
     setTimeout(() => {
       try {
         const state = usePlannerStore.getState();
@@ -129,6 +145,11 @@ export default function WorkspaceEditorPage() {
           anchors: anchorsMap,
           availableCabinets: state.modules,
           goldenRules: state.goldenRules,
+          floorToCeiling: state.floorToCeiling,
+          useSidePanel200: state.useSidePanel200,
+          useHood: state.useHood,
+          sinkModuleWidth: state.sinkModuleWidth,
+          drawerHousingWidth: state.drawerHousingWidth,
         };
 
         const input = deriveInput(storeState);
@@ -159,10 +180,18 @@ export default function WorkspaceEditorPage() {
     [roomWidth, roomDepth, wallHeight],
   );
 
-  const wallAnchors: WallAnchors[] = useMemo(
-    () => walls.map((w) => ({ wallId: w.id, anchors: w.anchors })),
-    [walls],
-  );
+  const wallAnchors: WallAnchors[] = useMemo(() => {
+    const glbByKind = buildGlbByKindMap(modules);
+
+    return walls.map((w) => ({
+      wallId: w.id,
+      anchors: w.anchors.map((a) => {
+        if (a.glbFile) return a;
+        const glb = glbByKind.get(ANCHOR_TO_KIND[a.type]);
+        return glb ? { ...a, glbFile: glb } : a;
+      }),
+    }));
+  }, [walls, modules]);
 
   // Allow returning to wizard from planner mode
   const handleEditWizard = useCallback(() => {

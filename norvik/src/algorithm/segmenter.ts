@@ -1,5 +1,10 @@
 import type { Anchor, Segment, SegmentContext, WallConfig } from './types';
-import { MIN_SEGMENT } from './constants';
+import { MIN_SEGMENT, MODULE_GRID } from './constants';
+
+/** Snap a value to the nearest multiple of the grid (default 50mm). */
+export function snapToGrid(value: number, grid: number = MODULE_GRID): number {
+  return Math.round(value / grid) * grid;
+}
 
 /**
  * Determine the context for a segment based on adjacent anchors.
@@ -73,6 +78,57 @@ export function segmentWall(
       end: effectiveEnd,
       width,
       context: resolveContext(lastAnchor, null),
+      isTrim: width <= MIN_SEGMENT,
+    });
+  }
+
+  return segments;
+}
+
+/**
+ * Splits a wall into segments for upper cabinet placement.
+ *
+ * Unlike `segmentWall`, this only blocks on cooktop anchors (hood zone).
+ * Sink and oven anchors are ignored — upper cabinets CAN go above them.
+ */
+export function segmentWallForUppers(
+  wall: WallConfig,
+  cornerOffset?: { startOffset?: number; endOffset?: number },
+): Segment[] {
+  const cooktopAnchors = [...wall.anchors]
+    .filter((a) => a.type === 'cooktop')
+    .sort((a, b) => a.position - b.position);
+
+  const segments: Segment[] = [];
+  let cursor = cornerOffset?.startOffset ?? 0;
+  const effectiveEnd = wall.length - (cornerOffset?.endOffset ?? 0);
+
+  for (const anchor of cooktopAnchors) {
+    const anchorStart = anchor.position;
+    const anchorEnd = anchor.position + anchor.width;
+
+    if (anchorStart > cursor) {
+      const width = anchorStart - cursor;
+      segments.push({
+        wallId: wall.id,
+        start: cursor,
+        end: anchorStart,
+        width,
+        context: 'standard',
+        isTrim: width <= MIN_SEGMENT,
+      });
+    }
+    cursor = anchorEnd;
+  }
+
+  if (cursor < effectiveEnd) {
+    const width = effectiveEnd - cursor;
+    segments.push({
+      wallId: wall.id,
+      start: cursor,
+      end: effectiveEnd,
+      width,
+      context: 'standard',
       isTrim: width <= MIN_SEGMENT,
     });
   }

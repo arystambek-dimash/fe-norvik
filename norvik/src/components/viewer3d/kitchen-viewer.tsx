@@ -2,6 +2,7 @@ import {useRef, useEffect, useCallback} from 'react';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import type {KitchenPlan} from '@/algorithm/types';
+import {EMPTY_SCORE_BREAKDOWN} from '@/algorithm/scoring';
 import {buildScene, type RoomConfig, type WallAnchors} from './scene-builder';
 import {disposeScene} from './dispose';
 import {clearTextureCache} from './texture-factory';
@@ -201,24 +202,12 @@ export function KitchenViewer({
                 walls: [],
                 cornerModules: [],
                 score: 0,
-                scoreBreakdown: {
-                    widthConsistency: 0,
-                    moduleSweetSpot: 0,
-                    ergonomicPlacement: 0,
-                    fillerPenalty: 0,
-                    symmetry: 0,
-                    aestheticGrouping: 0,
-                    visualComposition: 0,
-                    workingTriangle: 0,
-                    upperCoverage: 0,
-                    cornerFit: 0,
-                },
+                scoreBreakdown: EMPTY_SCORE_BREAKDOWN,
             };
             const {scene} = buildScene(emptyPlan, roomConfig, wallAnchors);
             sceneRef.current = scene;
             return;
         }
-
         const {scene, loadGlbModels} = buildScene(plan, roomConfig, wallAnchors);
         sceneRef.current = scene;
 

@@ -3,11 +3,17 @@ import type { SolverCandidate } from './types';
 
 const MAX_CANDIDATES = 40;
 
+export interface SolveOptions {
+  /** When true, rewards 2-3 unique widths instead of penalizing variety */
+  preferVariety?: boolean;
+}
+
 /**
  * Score a single candidate combination.
  * Prefers: fewer modules, larger widths, uniform sizes.
+ * When preferVariety is set, rewards width diversity (for upper cabinets).
  */
-function scoreCandidate(widths: number[]): number {
+function scoreCandidate(widths: number[], preferVariety = false): number {
   if (widths.length === 0) return 0;
 
   // Fewer modules is better (inverse of count, scaled)
@@ -24,7 +30,19 @@ function scoreCandidate(widths: number[]): number {
   const stdDev = Math.sqrt(variance);
   const uniformityScore = Math.max(0, 100 - stdDev / 2);
 
-  return countScore * 0.3 + sizeScore * 0.3 + uniformityScore * 0.4;
+  if (preferVariety) {
+    // Reward 2-3 unique widths for visually interesting layouts
+    const uniqueCount = new Set(widths).size;
+    const varietyBonus =
+      uniqueCount === 1 ? 30
+      : uniqueCount === 2 ? 80
+      : uniqueCount === 3 ? 100
+      : Math.max(0, 100 - (uniqueCount - 3) * 25);
+
+    return countScore * 0.35 + sizeScore * 0.45 + uniformityScore * 0.05 + varietyBonus * 0.15;
+  }
+
+  return countScore * 0.45 + sizeScore * 0.45 + uniformityScore * 0.1;
 }
 
 /**
@@ -36,7 +54,9 @@ function scoreCandidate(widths: number[]): number {
 export function solve(
   targetWidth: number,
   modules: CabinetRead[],
+  options?: SolveOptions,
 ): SolverCandidate[] {
+  const preferVariety = options?.preferVariety ?? false;
   // Deduplicate modules by width to avoid redundant branches
   const uniqueModules = deduplicateByWidth(modules);
   const sortedModules = [...uniqueModules].sort((a, b) => a.width - b.width);
@@ -56,7 +76,7 @@ export function solve(
         widths: [...currentWidths],
         cabinetIds: [...currentIds],
         articles: [...currentArticles],
-        score: scoreCandidate(currentWidths),
+        score: scoreCandidate(currentWidths, preferVariety),
       });
       return;
     }
@@ -108,6 +128,5 @@ function deduplicateByWidth(modules: CabinetRead[]): CabinetRead[] {
     }
   }
 
-  console.log(result);
   return result;
 }
