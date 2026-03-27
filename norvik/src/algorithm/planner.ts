@@ -30,6 +30,7 @@ import {
   MODULE_GRID,
   MIN_SEGMENT,
   ARTICLE_PREFIX,
+  MAX_COUNTERTOP,
 } from './constants';
 import { segmentWall, segmentWallForUppers } from './segmenter';
 import { GoldenTable } from './golden-table';
@@ -316,7 +317,7 @@ function solveUpperForWall(
   useHood?: boolean,
 ): PlacedModule[][] {
   const allUppers = availableModules.filter(
-    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width > 0,
+    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width > SIDE_PANEL_WIDTH,
   );
   if (allUppers.length === 0) return [[]];
 
@@ -435,7 +436,7 @@ function solveUppersAlignedToLowers(
 ): PlacedModule[][] {
   // ── 1. Filter & group upper modules by height ──
   const allUppers = availableModules.filter(
-    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width > 0,
+    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width > SIDE_PANEL_WIDTH,
   );
   if (allUppers.length === 0) return [[]];
 
@@ -946,6 +947,41 @@ function placeDrawerUnit(
   }
 }
 
+/**
+ * Place fridge and optional penal at the chosen wall edge.
+ * Order: [countertop][fridge][penal] (right) or [penal][fridge][countertop] (left).
+ */
+function placeTallAppliances(
+  wallPlan: WallPlan,
+  fridgeCab: CabinetRead,
+  penalCab: CabinetRead | null,
+  penalReserve: number,
+  side: 'left' | 'right',
+  wallLength: number,
+  cornerOffset?: { startOffset?: number; endOffset?: number },
+): void {
+  const cornerStart = cornerOffset?.startOffset ?? 0;
+  const cornerEnd = cornerOffset?.endOffset ?? 0;
+
+  if (side === 'right') {
+    // [countertop] ... [fridge][penal]|wall-end
+    const penalX = wallLength - cornerEnd - penalReserve;
+    const fridgeX = penalX - fridgeCab.width;
+    wallPlan.modules.push(cabinetToModule(fridgeCab, fridgeX, wallPlan.wallId, { type: 'tall' }));
+    if (penalCab && penalReserve > 0) {
+      wallPlan.modules.push(cabinetToModule(penalCab, penalX, wallPlan.wallId, { type: 'tall' }));
+    }
+  } else {
+    // wall-start|[penal][fridge] ... [countertop]
+    const penalX = cornerStart;
+    const fridgeX = cornerStart + penalReserve;
+    if (penalCab && penalReserve > 0) {
+      wallPlan.modules.push(cabinetToModule(penalCab, penalX, wallPlan.wallId, { type: 'tall' }));
+    }
+    wallPlan.modules.push(cabinetToModule(fridgeCab, fridgeX, wallPlan.wallId, { type: 'tall' }));
+  }
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 
@@ -1005,12 +1041,17 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
   // Filter out special modules from general solver input —
   // СБ side panels via placeSidePanels200(), СМ sink modules via placeSinkModules(),
   // СЯШ drawer units via placeDrawerUnit().
+  // Also exclude modules with width ≤ 200mm (side panel width) to avoid tiny gap fillers.
   const solverModules = input.modules.filter(
     (m) =>
+      m.width > SIDE_PANEL_WIDTH &&
+      !m.is_corner &&
       !(m.article.startsWith(ARTICLE_PREFIX.SIDE_PANEL) && m.width === SIDE_PANEL_WIDTH) &&
       !isSinkModule(m) &&
       !isDrawerUnit(m) &&
-      m.kind !== CabinetKind.PLATE,
+      m.kind !== CabinetKind.PLATE &&
+      m.kind !== CabinetKind.FRIDGE &&
+      m.kind !== CabinetKind.PENAL,
   );
 
   // Pre-find СМ sink module matching requested width (by kind: SINK/SINK_BASE)
@@ -1023,6 +1064,18 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
     (m) => isDrawerUnit(m) && m.width === input.drawerHousingWidth,
   ) ?? null;
 
+  // Pre-find fridge cabinet (by kind: FRIDGE) — auto-placed at wall edge
+  const fridgeCab = input.modules.find(
+    (m) => m.kind === CabinetKind.FRIDGE,
+  ) ?? null;
+
+  // Pre-find penal cabinet (by kind: PENAL) — placed next to fridge when wall > 3000mm
+  const penalCab = input.modules.find(
+    (m) => m.kind === CabinetKind.PENAL,
+  ) ?? null;
+
+  const lastWallId = input.walls.length > 0 ? input.walls[input.walls.length - 1].id : null;
+
   // Pre-build antresol index once (avoids rebuilding per variant)
   const antresolByWidth = input.floorToCeiling
     ? buildAntresolIndex(input.modules)
@@ -1033,42 +1086,75 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
 
   for (const wallConfig of input.walls) {
     const offset = cornerOffsets.get(wallConfig.id);
-    const segments = segmentWall(wallConfig, offset);
+
+    // Reserve space for fridge + penal at the chosen edge of the last wall.
+    // Countertop max = MAX_COUNTERTOP (3000mm). Extra space → fridge + penal.
+    let fridgeReserve = 0;
+    let penalReserve = 0;
+    if (fridgeCab && wallConfig.id === lastWallId) {
+      const cornerStart = offset?.startOffset ?? 0;
+      const cornerEnd = offset?.endOffset ?? 0;
+      const effectiveLength = wallConfig.length - cornerStart - cornerEnd;
+      const tallZone = Math.max(0, effectiveLength - MAX_COUNTERTOP);
+
+      fridgeReserve = fridgeCab.width;
+      if (tallZone >= fridgeCab.width + (penalCab?.width ?? 0) && penalCab) {
+        penalReserve = penalCab.width;
+      }
+    }
+    const totalTallReserve = fridgeReserve + penalReserve;
+
+    // Anchor positions are absolute wall coordinates (auto-snapped outside fridge zone).
+    // No shift needed — the segOffset handles the reserved zone.
+    const effectiveWallConfig = wallConfig;
+    const segOffset = totalTallReserve > 0
+      ? input.fridgeSide === 'left'
+        ? { startOffset: (offset?.startOffset ?? 0) + totalTallReserve, endOffset: offset?.endOffset }
+        : { startOffset: offset?.startOffset, endOffset: (offset?.endOffset ?? 0) + totalTallReserve }
+      : offset;
+    const segments = segmentWall(effectiveWallConfig, segOffset);
 
     // Solve lower cabinets
     const segmentSolutions: PlacedModule[][][] = segments.map((seg) =>
       solveSegment(seg, goldenTable, solverModules, maps),
     );
 
-    const wallVariants = generateWallVariants(wallConfig, segmentSolutions);
+    const wallVariants = generateWallVariants(effectiveWallConfig, segmentSolutions);
 
     // ── Lower post-processing (modifies lower module positions) ──
 
     // Place СБ 200 side panels next to dishwashers and cooktop (only if flag is on)
     if (input.useSidePanel200 && sidePanelCab) {
       for (const variant of wallVariants) {
-        placeSidePanels200(variant, wallConfig, sidePanelCab, goldenTable, solverModules, maps);
+        placeSidePanels200(variant, effectiveWallConfig, sidePanelCab, goldenTable, solverModules, maps);
       }
     }
 
     // Place СМ sink modules at sink anchor positions
     if (sinkModuleCab) {
       for (const variant of wallVariants) {
-        placeSinkModules(variant, wallConfig, sinkModuleCab);
+        placeSinkModules(variant, effectiveWallConfig, sinkModuleCab);
       }
     }
 
     // Auto-place СБ 200 in exact 200mm sink-cooktop gap (only when flag is on)
     if (input.useSidePanel200 && sidePanelCab) {
       for (const variant of wallVariants) {
-        autoPlaceSidePanelInGap(variant, wallConfig, sidePanelCab);
+        autoPlaceSidePanelInGap(variant, effectiveWallConfig, sidePanelCab);
       }
     }
 
     // Place СЯШ drawer unit after sink (or after dishwasher if present)
     if (drawerUnitCab) {
       for (const variant of wallVariants) {
-        placeDrawerUnit(variant, wallConfig, drawerUnitCab);
+        placeDrawerUnit(variant, effectiveWallConfig, drawerUnitCab);
+      }
+    }
+
+    // Place fridge at the chosen edge of the last wall
+    if (fridgeCab && wallConfig.id === lastWallId) {
+      for (const variant of wallVariants) {
+        placeTallAppliances(variant, fridgeCab, penalCab, penalReserve, input.fridgeSide, wallConfig.length, offset);
       }
     }
 
@@ -1076,7 +1162,7 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
     const expanded: WallPlan[] = [];
     for (const variant of wallVariants) {
       const upperSolutions = solveUppersAlignedToLowers(
-        variant, wallConfig, solverModules, maps.byId, offset, input.useHood,
+        variant, effectiveWallConfig, solverModules, maps.byId, offset, input.useHood,
       );
       for (const upperMods of upperSolutions) {
         expanded.push({

@@ -4,8 +4,10 @@ export enum CabinetKind {
   SINK = "sink",
   PLATE = "plate",
   FRIDGE = "fridge",
+  PENAL = "penal",
   ANTRESOL = "antresol",
   APPLIANCE_HOUSING = "appliance_housing",
+  PENAL_APPLIANCE_HOUSING = "penal_appliance_housing",
 }
 
 export enum CabinetType {

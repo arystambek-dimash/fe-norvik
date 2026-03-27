@@ -48,6 +48,9 @@ export interface KitchenStoreState {
 
   /** Drawer unit width: 400 or 600 mm (СЯШ 400 / СЯШ 600) */
   drawerHousingWidth?: number;
+
+  /** Fridge placement side: left or right edge of last wall */
+  fridgeSide?: 'left' | 'right';
 }
 
 /**
@@ -99,5 +102,6 @@ export function deriveInput(state: KitchenStoreState): PlannerInput {
     useHood: state.useHood ?? false,
     sinkModuleWidth: state.sinkModuleWidth ?? 600,
     drawerHousingWidth: state.drawerHousingWidth ?? 400,
+    fridgeSide: state.fridgeSide ?? 'right',
   };
 }

@@ -31,6 +31,9 @@ export const MIN_LOWER_FILLER = 50;
 export const MAX_LOWER_FILLER = 300;
 export const FILLER_STEP = 10;
 
+/** Maximum countertop (lower modules) length in mm */
+export const MAX_COUNTERTOP = 3000;
+
 /** Module width grid alignment in mm */
 export const MODULE_GRID = 50;
 
