@@ -40,6 +40,7 @@ export default function WorkspaceEditorPage() {
   const selectedModuleId = usePlannerStore((s) => s.selectedModuleId);
   const setVariants = usePlannerStore((s) => s.setVariants);
   const modules = usePlannerStore((s) => s.modules);
+  const fridgeSide = usePlannerStore((s) => s.fridgeSide);
   const setSelectedModuleId = usePlannerStore((s) => s.setSelectedModuleId);
   const reset = usePlannerStore((s) => s.reset);
 
@@ -75,6 +76,8 @@ export default function WorkspaceEditorPage() {
         store.setSinkModuleWidth(restored.sinkModuleWidth);
       if (restored.drawerHousingWidth !== undefined)
         store.setDrawerHousingWidth(restored.drawerHousingWidth);
+      if (restored.fridgeSide !== undefined)
+        store.setFridgeSide(restored.fridgeSide);
       if (restored.variants) store.setVariants(restored.variants);
       if (restored.selectedVariantIndex !== undefined)
         store.setSelectedVariantIndex(restored.selectedVariantIndex);
@@ -119,6 +122,7 @@ export default function WorkspaceEditorPage() {
       useHood: state.useHood,
       sinkModuleWidth: state.sinkModuleWidth,
       drawerHousingWidth: state.drawerHousingWidth,
+      fridgeSide: state.fridgeSide,
       variants: state.variants,
       selectedVariantIndex: state.selectedVariantIndex,
     });
@@ -150,6 +154,7 @@ export default function WorkspaceEditorPage() {
           useHood: state.useHood,
           sinkModuleWidth: state.sinkModuleWidth,
           drawerHousingWidth: state.drawerHousingWidth,
+          fridgeSide: state.fridgeSide,
         };
 
         const input = deriveInput(storeState);
@@ -183,6 +188,8 @@ export default function WorkspaceEditorPage() {
   const wallAnchors: WallAnchors[] = useMemo(() => {
     const glbByKind = buildGlbByKindMap(modules);
 
+    // Anchor positions are absolute wall coordinates — no shift needed.
+    // Auto-snap in walls-step ensures they don't overlap with fridge/penal zone.
     return walls.map((w) => ({
       wallId: w.id,
       anchors: w.anchors.map((a) => {

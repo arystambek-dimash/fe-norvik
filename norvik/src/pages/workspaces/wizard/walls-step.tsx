@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { usePlannerStore } from "@/stores/planner-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2, CookingPot, Droplets, Flame } from "lucide-react";
-import { SINK_COOKTOP_GAP_GRID } from "@/algorithm/constants";
+import { Plus, Trash2, CookingPot, Droplets, Flame, Refrigerator } from "lucide-react";
+import { SINK_COOKTOP_GAP_GRID, MAX_COUNTERTOP } from "@/algorithm/constants";
 import { snapToGrid } from "@/algorithm/segmenter";
+import { CabinetKind } from "@/types/enums";
 
 interface Anchor {
   type: "sink" | "cooktop" | "oven";
@@ -86,15 +88,42 @@ function hasInvalidGap(anchors: Anchor[], index: number, drawerHousingWidth: num
   return false;
 }
 
+function isInFridgeZone(
+  anchor: Anchor,
+  wallLength: number,
+  fridgeSide?: 'left' | 'right',
+  fridgeWidth?: number,
+  penalWidth?: number,
+): boolean {
+  if (!fridgeSide || !fridgeWidth) return false;
+  const totalReserve = fridgeWidth + (penalWidth ?? 0);
+  const anchorEnd = anchor.position + anchor.width;
+
+  if (fridgeSide === 'left') {
+    // Reserved zone: [0, totalReserve]
+    return anchor.position < totalReserve && anchorEnd > 0;
+  } else {
+    // Reserved zone: [wallLength - totalReserve, wallLength]
+    const zoneStart = wallLength - totalReserve;
+    return anchor.position < wallLength && anchorEnd > zoneStart;
+  }
+}
+
 function WallDiagram({
   wall,
   drawerHousingWidth,
+  fridgeSide,
+  fridgeWidth,
+  penalWidth,
   onUpdateAnchor,
   onRemoveAnchor,
   onAddAnchor,
 }: {
   wall: WallConfig;
   drawerHousingWidth: number;
+  fridgeSide?: 'left' | 'right';
+  fridgeWidth?: number;
+  penalWidth?: number;
   onUpdateAnchor: (
     wallId: string,
     anchorIdx: number,
@@ -145,7 +174,8 @@ function WallDiagram({
             const overlap = hasOverlap(wall.anchors, idx);
             const outOfBounds = isOutOfBounds(anchor, wall.length);
             const tooClose = hasInvalidGap(wall.anchors, idx, drawerHousingWidth);
-            const hasError = overlap || outOfBounds || tooClose;
+            const inFridgeZone = isInFridgeZone(anchor, wall.length, fridgeSide, fridgeWidth, penalWidth);
+            const hasError = overlap || outOfBounds || tooClose || inFridgeZone;
 
             return (
               <div
@@ -162,6 +192,42 @@ function WallDiagram({
             );
           })}
 
+          {/* Fridge + Penal markers */}
+          {fridgeSide && fridgeWidth && fridgeWidth > 0 && (() => {
+            const pw = penalWidth ?? 0;
+            const totalTall = fridgeWidth + pw;
+            // Right: [fridge][penal]|wall-end — Left: wall-start|[penal][fridge]
+            const fridgeLeft = fridgeSide === 'right'
+              ? barWidth - totalTall * scale
+              : pw * scale;
+            const penalLeft = fridgeSide === 'right'
+              ? barWidth - pw * scale
+              : 0;
+
+            return (
+              <>
+                {/* Fridge */}
+                <div
+                  className="absolute top-0 flex h-10 items-center justify-center rounded bg-emerald-600 text-[10px] font-medium text-white"
+                  style={{ left: fridgeLeft, width: Math.max(8, fridgeWidth * scale) }}
+                  title={`Холодильник: ${fridgeWidth}мм`}
+                >
+                  <Refrigerator className="h-4 w-4" />
+                </div>
+                {/* Penal */}
+                {pw > 0 && (
+                  <div
+                    className="absolute top-0 flex h-10 items-center justify-center rounded bg-amber-600 text-[10px] font-medium text-white"
+                    style={{ left: penalLeft, width: Math.max(8, pw * scale) }}
+                    title={`Пенал: ${pw}мм`}
+                  >
+                    П
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
           {/* Scale ticks */}
           <div className="mt-1 flex justify-between">
             <span className="text-[10px] text-muted-foreground">0</span>
@@ -172,6 +238,20 @@ function WallDiagram({
         </div>
       </div>
 
+      {/* Layout breakdown info */}
+      {fridgeSide && fridgeWidth && fridgeWidth > 0 && (
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span>Столешница: <strong className="text-foreground">{wall.length - fridgeWidth - (penalWidth ?? 0)} мм</strong></span>
+          <span className="text-emerald-600">Холодильник: <strong>{fridgeWidth} мм</strong></span>
+          {(penalWidth ?? 0) > 0 && (
+            <span className="text-amber-600">Пенал: <strong>{penalWidth} мм</strong></span>
+          )}
+          {(penalWidth ?? 0) > 0 && (
+            <span className="italic">(пенал добавлен, т.к. стена &gt; {MAX_COUNTERTOP} мм)</span>
+          )}
+        </div>
+      )}
+
       {/* Anchor detail rows */}
       {wall.anchors.length > 0 && (
         <div className="space-y-3">
@@ -179,6 +259,7 @@ function WallDiagram({
             const overlap = hasOverlap(wall.anchors, idx);
             const outOfBounds = isOutOfBounds(anchor, wall.length);
             const tooClose = hasInvalidGap(wall.anchors, idx, drawerHousingWidth);
+            const inFridgeZone = isInFridgeZone(anchor, wall.length, fridgeSide, fridgeWidth, penalWidth);
             const AnchorIcon =
               anchorTypes.find((t) => t.type === anchor.type)?.icon ?? Droplets;
 
@@ -187,7 +268,7 @@ function WallDiagram({
                 key={idx}
                 className={cn(
                   "flex flex-wrap items-center gap-3 rounded-lg border p-3",
-                  overlap || outOfBounds || tooClose
+                  overlap || outOfBounds || tooClose || inFridgeZone
                     ? "border-destructive/50 bg-destructive/5"
                     : getAnchorBorder(anchor.type) + " bg-card"
                 )}
@@ -260,6 +341,11 @@ function WallDiagram({
                     Мин. расстояние между мойкой и варочной — {Math.ceil(drawerHousingWidth / SINK_COOKTOP_GAP_GRID) * SINK_COOKTOP_GAP_GRID} мм (кратно {SINK_COOKTOP_GAP_GRID})
                   </p>
                 )}
+                {inFridgeZone && (
+                  <p className="w-full text-xs text-destructive">
+                    Якорь пересекается с зоной холодильника/пенала — переместите якорь за пределы зоны ({fridgeSide === 'left' ? `0–${(fridgeWidth ?? 0) + (penalWidth ?? 0)}` : `${wall.length - (fridgeWidth ?? 0) - (penalWidth ?? 0)}–${wall.length}`} мм)
+                  </p>
+                )}
               </div>
             );
           })}
@@ -292,7 +378,7 @@ function FeatureToggle({ label, description, checked, onChange }: {
   );
 }
 
-function WidthSelector<T extends number>({ label, description, options, value, onChange }: {
+function WidthSelector<T extends number | string>({ label, description, options, value, onChange }: {
   label: string;
   description: string;
   options: readonly T[];
@@ -327,7 +413,7 @@ function WidthSelector<T extends number>({ label, description, options, value, o
 }
 
 export function WallsStep() {
-  const { roomWidth, roomDepth, layoutType, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth } =
+  const { roomWidth, roomDepth, layoutType, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth, fridgeSide, setFridgeSide, modules } =
     usePlannerStore();
 
   // Auto-generate walls when room config changes
@@ -362,6 +448,46 @@ export function WallsStep() {
     }
   }, [generatedWalls, setWalls]);
 
+  // Compute fridge/penal reserved zone for the last wall
+  const fridgeZone = useMemo(() => {
+    const lastWall = walls.length > 0 ? walls[walls.length - 1] : null;
+    const fridgeCab = modules.find((m: any) => m.kind === CabinetKind.FRIDGE);
+    const penalCab = modules.find((m: any) => m.kind === CabinetKind.PENAL);
+    if (!lastWall || !fridgeCab) return null;
+
+    const fw = fridgeCab.width;
+    const tallZone = Math.max(0, lastWall.length - MAX_COUNTERTOP);
+    const pw = (penalCab && tallZone >= fw + penalCab.width) ? penalCab.width : 0;
+    const total = fw + pw;
+
+    return {
+      wallId: lastWall.id,
+      side: fridgeSide,
+      total,
+      // Zone boundaries
+      start: fridgeSide === 'left' ? 0 : lastWall.length - total,
+      end: fridgeSide === 'left' ? total : lastWall.length,
+    };
+  }, [walls, modules, fridgeSide]);
+
+  /** Snap anchor position out of fridge/penal zone if it overlaps */
+  const snapOutOfFridgeZone = useCallback(
+    (wallId: string, position: number, width: number): number => {
+      if (!fridgeZone || wallId !== fridgeZone.wallId) return position;
+      const anchorEnd = position + width;
+      if (position < fridgeZone.end && anchorEnd > fridgeZone.start) {
+        // Overlaps — snap to the nearest edge
+        const snapped = fridgeZone.side === 'left' ? fridgeZone.end : Math.max(0, fridgeZone.start - width);
+        toast.info(
+          `Якорь сдвинут из зоны холодильника/пенала (${fridgeZone.start}–${fridgeZone.end} мм)`,
+        );
+        return snapToGrid(snapped);
+      }
+      return position;
+    },
+    [fridgeZone],
+  );
+
   // When sink module width changes, update all existing sink anchor widths
   const handleSinkModuleWidthChange = useCallback(
     (newWidth: 600 | 800) => {
@@ -386,8 +512,8 @@ export function WallsStep() {
           (max, a) => Math.max(max, a.position + a.width),
           0
         );
-        const snappedPosition = snapToGrid(lastEnd);
         const width = type === "sink" ? sinkModuleWidth : 600;
+        const snappedPosition = snapOutOfFridgeZone(wallId, snapToGrid(lastEnd), width);
         return {
           ...w,
           anchors: [
@@ -398,7 +524,7 @@ export function WallsStep() {
       });
       setWalls(updated);
     },
-    [walls, setWalls, sinkModuleWidth]
+    [walls, setWalls, sinkModuleWidth, snapOutOfFridgeZone]
   );
 
   const handleUpdateAnchor = useCallback(
@@ -407,14 +533,20 @@ export function WallsStep() {
         if (w.id !== wallId) return w;
         return {
           ...w,
-          anchors: w.anchors.map((a, i) =>
-            i === anchorIdx ? { ...a, ...updates } : a
-          ),
+          anchors: w.anchors.map((a, i) => {
+            if (i !== anchorIdx) return a;
+            const merged = { ...a, ...updates };
+            // Auto-snap position out of fridge/penal zone
+            if (updates.position !== undefined) {
+              merged.position = snapOutOfFridgeZone(wallId, merged.position, merged.width);
+            }
+            return merged;
+          }),
         };
       });
       setWalls(updated);
     },
-    [walls, setWalls]
+    [walls, setWalls, snapOutOfFridgeZone]
   );
 
   const handleRemoveAnchor = useCallback(
@@ -475,19 +607,46 @@ export function WallsStep() {
           value={drawerHousingWidth}
           onChange={setDrawerHousingWidth}
         />
+        <WidthSelector
+          label="Холодильник"
+          description="Сторона размещения холодильника"
+          options={['Слева', 'Справа'] as const}
+          value={fridgeSide === 'left' ? 'Слева' : 'Справа'}
+          onChange={(v) => setFridgeSide(v === 'Слева' ? 'left' : 'right')}
+        />
       </div>
 
       <div className="space-y-6">
-        {walls.map((wall) => (
-          <WallDiagram
-            key={wall.id}
-            wall={wall}
-            drawerHousingWidth={drawerHousingWidth}
-            onUpdateAnchor={handleUpdateAnchor}
-            onRemoveAnchor={handleRemoveAnchor}
-            onAddAnchor={handleAddAnchor}
-          />
-        ))}
+        {walls.map((wall, idx) => {
+          const isLastWall = idx === walls.length - 1;
+          const fridgeCab = isLastWall
+            ? modules.find((m: any) => m.kind === CabinetKind.FRIDGE)
+            : undefined;
+          const penalCab = isLastWall
+            ? modules.find((m: any) => m.kind === CabinetKind.PENAL)
+            : undefined;
+          // Calculate penal width (only if wall > MAX_COUNTERTOP and both fit)
+          let penalW = 0;
+          if (isLastWall && fridgeCab && penalCab) {
+            const tallZone = Math.max(0, wall.length - MAX_COUNTERTOP);
+            if (tallZone >= fridgeCab.width + penalCab.width) {
+              penalW = penalCab.width;
+            }
+          }
+          return (
+            <WallDiagram
+              key={wall.id}
+              wall={wall}
+              drawerHousingWidth={drawerHousingWidth}
+              fridgeSide={isLastWall ? fridgeSide : undefined}
+              fridgeWidth={fridgeCab?.width}
+              penalWidth={penalW}
+              onUpdateAnchor={handleUpdateAnchor}
+              onRemoveAnchor={handleRemoveAnchor}
+              onAddAnchor={handleAddAnchor}
+            />
+          );
+        })}
       </div>
     </div>
   );

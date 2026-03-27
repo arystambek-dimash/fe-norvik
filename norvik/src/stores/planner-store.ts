@@ -54,6 +54,9 @@ interface PlannerState {
   // Drawer unit width (СЯШ 400 or СЯШ 600)
   drawerHousingWidth: 400 | 600;
 
+  // Fridge placement side
+  fridgeSide: 'left' | 'right';
+
   // 3D viewer
   selectedModuleId: string | null;
 
@@ -75,6 +78,7 @@ interface PlannerState {
   setUseHood: (v: boolean) => void;
   setSinkModuleWidth: (v: 600 | 800) => void;
   setDrawerHousingWidth: (v: 400 | 600) => void;
+  setFridgeSide: (v: 'left' | 'right') => void;
   setSelectedModuleId: (id: string | null) => void;
   reset: () => void;
 }
@@ -93,6 +97,7 @@ const initialState = {
   useHood: false,
   sinkModuleWidth: 600 as 600 | 800,
   drawerHousingWidth: 400 as 400 | 600,
+  fridgeSide: 'right' as 'left' | 'right',
   variants: [] as any[],
   selectedVariantIndex: 0,
   selectedModuleId: null,
@@ -112,6 +117,7 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setUseHood: (v) => set({ useHood: v }),
   setSinkModuleWidth: (v) => set({ sinkModuleWidth: v }),
   setDrawerHousingWidth: (v) => set({ drawerHousingWidth: v }),
+  setFridgeSide: (v) => set({ fridgeSide: v }),
   setSelectedModuleId: (id) => set({ selectedModuleId: id }),
   reset: () => set(initialState),
 }));

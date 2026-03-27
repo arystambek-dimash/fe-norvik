@@ -41,6 +41,7 @@ export interface SerializablePlannerState {
   useHood: boolean;
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
+  fridgeSide: 'left' | 'right';
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -61,6 +62,7 @@ interface SerializedWorkspaceContent {
   useHood: boolean;
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
+  fridgeSide: 'left' | 'right';
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -81,6 +83,7 @@ const DEFAULTS: SerializablePlannerState = {
   useHood: false,
   sinkModuleWidth: 600,
   drawerHousingWidth: 400,
+  fridgeSide: 'right',
   variants: [],
   selectedVariantIndex: 0,
 };
@@ -112,6 +115,7 @@ export function serializeState(
     useHood: state.useHood,
     sinkModuleWidth: state.sinkModuleWidth,
     drawerHousingWidth: state.drawerHousingWidth,
+    fridgeSide: state.fridgeSide,
     variants: state.variants,
     selectedVariantIndex: state.selectedVariantIndex,
   };
@@ -273,6 +277,12 @@ export function deserializeState(
     content.drawerHousingWidth === 400 || content.drawerHousingWidth === 600
       ? content.drawerHousingWidth
       : DEFAULTS.drawerHousingWidth;
+
+  // Fridge side
+  result.fridgeSide =
+    content.fridgeSide === 'left' || content.fridgeSide === 'right'
+      ? content.fridgeSide
+      : DEFAULTS.fridgeSide;
 
   // Variants (opaque data — accept arrays as-is)
   result.variants = Array.isArray(content.variants)
