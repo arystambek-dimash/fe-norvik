@@ -890,6 +890,44 @@ function placeSinkModules(
   }
 }
 
+// ── ПМ plate module placement (cooktop anchor) ──────────────────────────────
+
+/**
+ * Place a plate module (ПМ) at each cooktop anchor position.
+ * Mirrors placeSinkModules(): removes overlapping lower modules, inserts the
+ * matching ПМ module, and fills any remaining gap with a filler.
+ */
+function placePlateModules(
+  wallPlan: WallPlan,
+  wallConfig: WallConfig,
+  plateCab: CabinetRead,
+): void {
+  for (const anchor of wallConfig.anchors) {
+    if (anchor.type !== 'cooktop') continue;
+
+    const anchorStart = anchor.position;
+    const anchorEnd = anchor.position + anchor.width;
+
+    // Remove lower modules that overlap with the cooktop anchor zone
+    wallPlan.modules = wallPlan.modules.filter((m) => {
+      if (m.type !== 'lower' && m.type !== 'filler') return true;
+      const mEnd = m.x + m.width;
+      return mEnd <= anchorStart || m.x >= anchorEnd;
+    });
+
+    // Place the plate module at the anchor position
+    wallPlan.modules.push(cabinetToModule(plateCab, anchorStart, wallPlan.wallId, { type: 'lower' }));
+
+    // If plate module is narrower than anchor, fill the gap
+    const gap = anchor.width - plateCab.width;
+    if (gap > 0) {
+      wallPlan.modules.push(
+        placeFiller(anchorStart + plateCab.width, gap, wallPlan.wallId),
+      );
+    }
+  }
+}
+
 // ── СЯШ drawer unit placement ────────────────────────────────────────────────
 
 /**
@@ -1086,6 +1124,11 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
     (m) => isDrawerUnit(m) && m.width === input.drawerHousingWidth,
   ) ?? null;
 
+  // Pre-find ПМ plate module (by kind: PLATE) — placed at cooktop anchor
+  const plateCab = input.modules.find(
+    (m) => m.kind === CabinetKind.PLATE,
+  ) ?? null;
+
   // Pre-find fridge cabinet (by kind: FRIDGE) — auto-placed at wall edge
   const fridgeCab = input.modules.find(
     (m) => m.kind === CabinetKind.FRIDGE,
@@ -1156,6 +1199,13 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
     if (sinkModuleCab) {
       for (const variant of wallVariants) {
         placeSinkModules(variant, effectiveWallConfig, sinkModuleCab);
+      }
+    }
+
+    // Place ПМ plate modules at cooktop anchor positions
+    if (plateCab) {
+      for (const variant of wallVariants) {
+        placePlateModules(variant, effectiveWallConfig, plateCab);
       }
     }
 

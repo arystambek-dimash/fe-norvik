@@ -57,6 +57,10 @@ interface PlannerState {
   // Fridge placement side
   fridgeSide: 'left' | 'right';
 
+  // Countertop customization
+  countertopColor: string | null;
+  countertopTextureUrl: string | null;
+
   // 3D viewer
   selectedModuleId: string | null;
 
@@ -79,6 +83,8 @@ interface PlannerState {
   setSinkModuleWidth: (v: 600 | 800) => void;
   setDrawerHousingWidth: (v: 400 | 600) => void;
   setFridgeSide: (v: 'left' | 'right') => void;
+  setCountertopColor: (color: string | null) => void;
+  setCountertopTextureUrl: (url: string | null) => void;
   setSelectedModuleId: (id: string | null) => void;
   reset: () => void;
 }
@@ -98,6 +104,8 @@ const initialState = {
   sinkModuleWidth: 600 as 600 | 800,
   drawerHousingWidth: 400 as 400 | 600,
   fridgeSide: 'right' as 'left' | 'right',
+  countertopColor: null as string | null,
+  countertopTextureUrl: null as string | null,
   variants: [] as any[],
   selectedVariantIndex: 0,
   selectedModuleId: null,
@@ -118,6 +126,8 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setSinkModuleWidth: (v) => set({ sinkModuleWidth: v }),
   setDrawerHousingWidth: (v) => set({ drawerHousingWidth: v }),
   setFridgeSide: (v) => set({ fridgeSide: v }),
+  setCountertopColor: (color) => set({ countertopColor: color, countertopTextureUrl: null }),
+  setCountertopTextureUrl: (url) => set({ countertopTextureUrl: url, countertopColor: null }),
   setSelectedModuleId: (id) => set({ selectedModuleId: id }),
   reset: () => set(initialState),
 }));

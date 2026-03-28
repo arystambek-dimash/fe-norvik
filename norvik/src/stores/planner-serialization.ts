@@ -42,6 +42,8 @@ export interface SerializablePlannerState {
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
   fridgeSide: 'left' | 'right';
+  countertopColor: string | null;
+  countertopTextureUrl: string | null;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -63,6 +65,8 @@ interface SerializedWorkspaceContent {
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
   fridgeSide: 'left' | 'right';
+  countertopColor: string | null;
+  countertopTextureUrl: string | null;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -84,6 +88,8 @@ const DEFAULTS: SerializablePlannerState = {
   sinkModuleWidth: 600,
   drawerHousingWidth: 400,
   fridgeSide: 'right',
+  countertopColor: null,
+  countertopTextureUrl: null,
   variants: [],
   selectedVariantIndex: 0,
 };
@@ -116,6 +122,8 @@ export function serializeState(
     sinkModuleWidth: state.sinkModuleWidth,
     drawerHousingWidth: state.drawerHousingWidth,
     fridgeSide: state.fridgeSide,
+    countertopColor: state.countertopColor,
+    countertopTextureUrl: state.countertopTextureUrl,
     variants: state.variants,
     selectedVariantIndex: state.selectedVariantIndex,
   };
@@ -283,6 +291,14 @@ export function deserializeState(
     content.fridgeSide === 'left' || content.fridgeSide === 'right'
       ? content.fridgeSide
       : DEFAULTS.fridgeSide;
+
+  // Countertop customization
+  result.countertopColor = typeof content.countertopColor === 'string'
+    ? content.countertopColor
+    : DEFAULTS.countertopColor;
+  result.countertopTextureUrl = typeof content.countertopTextureUrl === 'string'
+    ? content.countertopTextureUrl
+    : DEFAULTS.countertopTextureUrl;
 
   // Variants (opaque data — accept arrays as-is)
   result.variants = Array.isArray(content.variants)

@@ -206,13 +206,17 @@ export const ANCHOR_TO_KIND: Record<AnchorType, CabinetKind> = {
   oven: CabinetKind.APPLIANCE_HOUSING,
 };
 
-/** Find the first GLB URL per cabinet kind from a list of cabinets */
-export function buildGlbByKindMap(
-  cabinets: { kind: CabinetKind; glb_file: string | null }[],
+/**
+ * Find the first appliance GLB URL per cabinet kind.
+ * Anchors (sink/cooktop/oven) should only use dedicated inbuilt appliance models,
+ * not full cabinet-module GLBs.
+ */
+export function buildAnchorGlbByKindMap(
+  cabinets: { kind: CabinetKind; glb_file: string | null; inbuilt: boolean }[],
 ): Map<CabinetKind, string> {
   const map = new Map<CabinetKind, string>();
   for (const cab of cabinets) {
-    if (cab.glb_file && !map.has(cab.kind)) {
+    if (cab.inbuilt && cab.glb_file && !map.has(cab.kind)) {
       map.set(cab.kind, cab.glb_file);
     }
   }

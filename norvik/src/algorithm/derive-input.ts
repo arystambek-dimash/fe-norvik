@@ -7,7 +7,7 @@ import type {
   PlannerInput,
   WallConfig,
 } from './types';
-import { ANCHOR_TO_KIND, buildGlbByKindMap } from './constants';
+import { ANCHOR_TO_KIND, buildAnchorGlbByKindMap } from './constants';
 
 /**
  * Generic store shape that the deriver reads from.
@@ -78,7 +78,7 @@ function deriveCorners(layoutType: LayoutType, walls: WallConfig[]): CornerJunct
  * packages everything the planner needs.
  */
 export function deriveInput(state: KitchenStoreState): PlannerInput {
-  const glbByKind = buildGlbByKindMap(state.availableCabinets);
+  const glbByKind = buildAnchorGlbByKindMap(state.availableCabinets);
 
   const walls: WallConfig[] = state.walls.map((wall) => {
     const anchors = (state.anchors[wall.id] ?? []).map((a) => ({

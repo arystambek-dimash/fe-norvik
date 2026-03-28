@@ -8,6 +8,7 @@ import { serializeState, deserializeState } from "@/stores/planner-serialization
 import { PlannerWizard } from "@/pages/workspaces/wizard/wizard-layout";
 import VariantPanel from "@/pages/workspaces/panels/variant-panel";
 import ModulePanel from "@/pages/workspaces/panels/module-panel";
+import CountertopPanel from "@/pages/workspaces/panels/countertop-panel";
 import GoldenTablePanel from "@/pages/workspaces/panels/golden-table-panel";
 import { KitchenViewer } from "@/components/viewer3d";
 import { planKitchen } from "@/algorithm";
@@ -19,7 +20,7 @@ import type { KitchenStoreState } from "@/algorithm/derive-input";
 import { deriveInput } from "@/algorithm";
 import type { SolverVariant } from "@/algorithm/types";
 import type { WallAnchors } from "@/components/viewer3d/scene-builder";
-import { ANCHOR_TO_KIND, buildGlbByKindMap } from "@/algorithm/constants";
+import { ANCHOR_TO_KIND, buildAnchorGlbByKindMap } from "@/algorithm/constants";
 
 export default function WorkspaceEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,7 @@ export default function WorkspaceEditorPage() {
   const workspaceId = Number(id);
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [countertopSelected, setCountertopSelected] = useState(false);
 
   // ---- Planner store selectors ----
   const roomWidth = usePlannerStore((s) => s.roomWidth);
@@ -41,6 +43,8 @@ export default function WorkspaceEditorPage() {
   const setVariants = usePlannerStore((s) => s.setVariants);
   const modules = usePlannerStore((s) => s.modules);
   const fridgeSide = usePlannerStore((s) => s.fridgeSide);
+  const countertopColor = usePlannerStore((s) => s.countertopColor);
+  const countertopTextureUrl = usePlannerStore((s) => s.countertopTextureUrl);
   const setSelectedModuleId = usePlannerStore((s) => s.setSelectedModuleId);
   const reset = usePlannerStore((s) => s.reset);
 
@@ -78,6 +82,10 @@ export default function WorkspaceEditorPage() {
         store.setDrawerHousingWidth(restored.drawerHousingWidth);
       if (restored.fridgeSide !== undefined)
         store.setFridgeSide(restored.fridgeSide);
+      usePlannerStore.setState({
+        countertopColor: restored.countertopColor ?? null,
+        countertopTextureUrl: restored.countertopTextureUrl ?? null,
+      });
       if (restored.variants) store.setVariants(restored.variants);
       if (restored.selectedVariantIndex !== undefined)
         store.setSelectedVariantIndex(restored.selectedVariantIndex);
@@ -123,6 +131,8 @@ export default function WorkspaceEditorPage() {
       sinkModuleWidth: state.sinkModuleWidth,
       drawerHousingWidth: state.drawerHousingWidth,
       fridgeSide: state.fridgeSide,
+      countertopColor: state.countertopColor,
+      countertopTextureUrl: state.countertopTextureUrl,
       variants: state.variants,
       selectedVariantIndex: state.selectedVariantIndex,
     });
@@ -186,7 +196,7 @@ export default function WorkspaceEditorPage() {
   );
 
   const wallAnchors: WallAnchors[] = useMemo(() => {
-    const glbByKind = buildGlbByKindMap(modules);
+    const glbByKind = buildAnchorGlbByKindMap(modules);
 
     // Anchor positions are absolute wall coordinates — no shift needed.
     // Auto-snap in walls-step ensures they don't overlap with fridge/penal zone.
@@ -199,6 +209,18 @@ export default function WorkspaceEditorPage() {
       }),
     }));
   }, [walls, modules]);
+
+  const handleSelectCountertop = useCallback(() => {
+    setCountertopSelected(true);
+  }, []);
+
+  const handleSelectModule = useCallback(
+    (id: string | null) => {
+      setSelectedModuleId(id);
+      setCountertopSelected(false);
+    },
+    [setSelectedModuleId],
+  );
 
   // Allow returning to wizard from planner mode
   const handleEditWizard = useCallback(() => {
@@ -319,7 +341,10 @@ export default function WorkspaceEditorPage() {
                   roomConfig={roomConfig}
                   wallAnchors={wallAnchors}
                   selectedModuleId={selectedModuleId}
-                  onSelectModule={setSelectedModuleId}
+                  onSelectModule={handleSelectModule}
+                  onSelectCountertop={handleSelectCountertop}
+                  countertopColor={countertopColor}
+                  countertopTextureUrl={countertopTextureUrl}
                 />
               </div>
             )}
@@ -331,6 +356,7 @@ export default function WorkspaceEditorPage() {
             style={{ animationDelay: "160ms" }}
           >
             <ModulePanel onColorChange={() => {}} />
+            <CountertopPanel highlighted={countertopSelected} />
           </aside>
         </div>
       )}

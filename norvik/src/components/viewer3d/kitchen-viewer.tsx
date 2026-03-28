@@ -6,6 +6,7 @@ import {EMPTY_SCORE_BREAKDOWN} from '@/algorithm/scoring';
 import {buildScene, type RoomConfig, type WallAnchors} from './scene-builder';
 import {disposeScene} from './dispose';
 import {clearTextureCache} from './texture-factory';
+import {countertopMaterial} from './procedural-models';
 
 interface KitchenViewerProps {
     plan: KitchenPlan | null;
@@ -13,6 +14,9 @@ interface KitchenViewerProps {
     wallAnchors?: WallAnchors[];
     selectedModuleId: string | null;
     onSelectModule: (id: string | null) => void;
+    onSelectCountertop?: () => void;
+    countertopColor?: string | null;
+    countertopTextureUrl?: string | null;
 }
 
 const HIGHLIGHT_EMISSIVE = new THREE.Color(0x4488ff);
@@ -36,12 +40,24 @@ function findModuleGroup(object: THREE.Object3D): THREE.Object3D | null {
     return null;
 }
 
+function findCountertopMesh(object: THREE.Object3D): boolean {
+    let current: THREE.Object3D | null = object;
+    while (current) {
+        if (current.userData?.isCountertop) return true;
+        current = current.parent;
+    }
+    return false;
+}
+
 export function KitchenViewer({
                                   plan,
                                   roomConfig,
                                   wallAnchors,
                                   selectedModuleId,
                                   onSelectModule,
+                                  onSelectCountertop,
+                                  countertopColor,
+                                  countertopTextureUrl,
                               }: KitchenViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -69,6 +85,12 @@ export function KitchenViewer({
             const intersects = raycasterRef.current.intersectObjects(scene.children, true);
 
             if (intersects.length > 0) {
+                // Check if countertop was clicked
+                if (findCountertopMesh(intersects[0].object)) {
+                    onSelectModule(null);
+                    onSelectCountertop?.();
+                    return;
+                }
                 const moduleGroup = findModuleGroup(intersects[0].object);
                 if (moduleGroup) {
                     onSelectModule(moduleGroup.userData.moduleId as string);
@@ -78,7 +100,7 @@ export function KitchenViewer({
 
             onSelectModule(null);
         },
-        [onSelectModule],
+        [onSelectModule, onSelectCountertop],
     );
 
     // Keep ref in sync so the stable listener always calls the latest handler
@@ -227,6 +249,28 @@ export function KitchenViewer({
             }
         });
     }, [selectedModuleId]);
+
+    // Apply countertop color/texture via the shared material
+    useEffect(() => {
+        if (countertopTextureUrl) {
+            new THREE.TextureLoader().load(countertopTextureUrl, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(2, 2);
+                countertopMaterial.map = texture;
+                countertopMaterial.color.setHex(0xffffff);
+                countertopMaterial.needsUpdate = true;
+            });
+        } else if (countertopColor) {
+            countertopMaterial.map = null;
+            countertopMaterial.color.set(countertopColor);
+            countertopMaterial.needsUpdate = true;
+        } else {
+            countertopMaterial.map = null;
+            countertopMaterial.color.setHex(0x3A3A3A);
+            countertopMaterial.needsUpdate = true;
+        }
+    }, [countertopColor, countertopTextureUrl]);
 
     return (
         <div

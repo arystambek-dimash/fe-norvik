@@ -39,6 +39,81 @@ function stoneMaterial(color: number): THREE.MeshStandardMaterial {
   });
 }
 
+/** Shared countertop material — import and mutate directly to change all countertops at once. */
+export const countertopMaterial = new THREE.MeshStandardMaterial({
+  color: 0x3A3A3A,
+  roughness: 0.4,
+  metalness: 0.05,
+});
+
+export function createLowerCountertop(
+  width: number,
+  depth: number,
+  height: number,
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'lower-countertop';
+
+  const w = mm(width);
+  const d = mm(depth);
+  const h = mm(height);
+
+  const ctOver = mm(25); // overhang
+  const ctH = mm(32);
+
+  const ctGeo = new THREE.BoxGeometry(w + ctOver * 0.5, ctH, d + ctOver);
+  const countertop = new THREE.Mesh(ctGeo, countertopMaterial);
+  countertop.position.set(0, h + ctH / 2, ctOver * 0.3);
+  countertop.castShadow = true;
+  countertop.receiveShadow = true;
+  countertop.userData.isCountertop = true;
+  group.add(countertop);
+
+  const edgeGeo = new THREE.BoxGeometry(w + ctOver * 0.5, mm(4), mm(3));
+  const edge = new THREE.Mesh(edgeGeo, stoneMaterial(COLORS.countertopEdge));
+  edge.position.set(0, h + mm(2), d / 2 + ctOver + mm(1));
+  edge.userData.isCountertop = true;
+  group.add(edge);
+
+  return group;
+}
+
+export function createCornerCountertop(
+  width: number,
+  depth: number,
+  height: number,
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'corner-countertop';
+
+  const w = mm(width);
+  const d = mm(depth);
+  const h = mm(height);
+
+  const ctOver = mm(25);
+  const ctH = mm(32);
+  const ctShape = new THREE.Shape();
+  ctShape.moveTo(-ctOver * 0.3, -ctOver * 0.3);
+  ctShape.lineTo(w + ctOver * 0.25, -ctOver * 0.3);
+  ctShape.lineTo(w + ctOver * 0.25, d + ctOver);
+  ctShape.lineTo(d + ctOver, d + ctOver);
+  ctShape.lineTo(d + ctOver, w + ctOver * 0.25);
+  ctShape.lineTo(-ctOver * 0.3, w + ctOver * 0.25);
+  ctShape.lineTo(-ctOver * 0.3, -ctOver * 0.3);
+
+  const ctGeo = new THREE.ExtrudeGeometry(ctShape, { depth: ctH, bevelEnabled: false });
+  ctGeo.rotateX(-Math.PI / 2);
+
+  const countertop = new THREE.Mesh(ctGeo, countertopMaterial);
+  countertop.position.y = h;
+  countertop.castShadow = true;
+  countertop.receiveShadow = true;
+  countertop.userData.isCountertop = true;
+  group.add(countertop);
+
+  return group;
+}
+
 /**
  * Lower cabinet: body + recessed door panel + handle bar + countertop with edge.
  * All input dimensions in mm.
@@ -47,6 +122,9 @@ export function createLowerCabinet(
   width: number,
   depth: number,
   height: number,
+  options?: {
+    includeCountertop?: boolean;
+  },
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = 'lower-cabinet';
@@ -103,20 +181,9 @@ export function createLowerCabinet(
   }
 
   // Countertop slab
-  const ctOver = mm(25); // overhang
-  const ctH = mm(32);
-  const ctGeo = new THREE.BoxGeometry(w + ctOver * 0.5, ctH, d + ctOver);
-  const countertop = new THREE.Mesh(ctGeo, stoneMaterial(COLORS.countertop));
-  countertop.position.set(0, h + ctH / 2, ctOver * 0.3);
-  countertop.castShadow = true;
-  countertop.receiveShadow = true;
-  group.add(countertop);
-
-  // Countertop front edge bevel (thin strip)
-  const edgeGeo = new THREE.BoxGeometry(w + ctOver * 0.5, mm(4), mm(3));
-  const edge = new THREE.Mesh(edgeGeo, stoneMaterial(COLORS.countertopEdge));
-  edge.position.set(0, h + mm(2), d / 2 + ctOver + mm(1));
-  group.add(edge);
+  if (options?.includeCountertop !== false) {
+    group.add(createLowerCountertop(width, depth, height));
+  }
 
   return group;
 }
@@ -259,24 +326,7 @@ export function createCornerCabinet(
   }
 
   // L-shaped countertop
-  const ctOver = mm(25);
-  const ctH = mm(32);
-  const ctShape = new THREE.Shape();
-  ctShape.moveTo(-ctOver * 0.3, -ctOver * 0.3);
-  ctShape.lineTo(w + ctOver * 0.25, -ctOver * 0.3);
-  ctShape.lineTo(w + ctOver * 0.25, d + ctOver);
-  ctShape.lineTo(d + ctOver, d + ctOver);
-  ctShape.lineTo(d + ctOver, w + ctOver * 0.25);
-  ctShape.lineTo(-ctOver * 0.3, w + ctOver * 0.25);
-  ctShape.lineTo(-ctOver * 0.3, -ctOver * 0.3);
-
-  const ctGeo = new THREE.ExtrudeGeometry(ctShape, { depth: ctH, bevelEnabled: false });
-  ctGeo.rotateX(-Math.PI / 2);
-  const countertop = new THREE.Mesh(ctGeo, stoneMaterial(COLORS.countertop));
-  countertop.position.y = h;
-  countertop.castShadow = true;
-  countertop.receiveShadow = true;
-  group.add(countertop);
+  group.add(createCornerCountertop(width, depth, height));
 
   return group;
 }

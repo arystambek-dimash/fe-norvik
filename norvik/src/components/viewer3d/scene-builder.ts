@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import type { KitchenPlan, PlacedModule, Anchor } from '@/algorithm/types';
+import { CabinetKind, CabinetSubtype } from '@/types/enums';
 import {
+  countertopMaterial,
   createLowerCabinet,
+  createLowerCountertop,
   createUpperCabinet,
   createCornerCabinet,
+  createCornerCountertop,
   createTallCabinet,
   createFillerPanel,
-  createSink,
-  createCooktop,
   mm,
 } from './procedural-models';
 import {
@@ -15,7 +17,7 @@ import {
   createWallTexture,
   createTileTexture,
 } from './texture-factory';
-import { UPPER_HEIGHT, UPPER_DEPTH, UPPER_Y, COUNTERTOP_TOP as COUNTERTOP_TOP_MM, WALL_THICKNESS, BASEBOARD_HEIGHT, BACKSPLASH_HEIGHT } from '@/algorithm/constants';
+import { UPPER_HEIGHT, UPPER_DEPTH, UPPER_Y, WALL_THICKNESS, BASEBOARD_HEIGHT, BACKSPLASH_HEIGHT } from '@/algorithm/constants';
 import { gltfLoader, proxyGlbUrl, enableShadows } from './three-utils';
 import { disposeObject } from './dispose';
 
@@ -181,6 +183,62 @@ function createLabel(text: string, x: number, y: number, z: number, bgColor?: st
 /**
  * Create the 3D object for a module based on its type.
  */
+function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
+  if (mod.type === 'corner') return true;
+  if (mod.type !== 'lower') return false;
+
+  return !(
+    mod.kind === CabinetKind.SINK &&
+    mod.subtype === CabinetSubtype.SINK_BASE
+  );
+}
+
+function canReuseGlbCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
+  return mod.type === 'corner' || mod.kind === CabinetKind.DOOR || mod.kind === CabinetKind.DRAWER_UNIT;
+}
+
+function isGlbCountertopCandidate(
+  meshBox: THREE.Box3,
+  modelBox: THREE.Box3,
+): boolean {
+  const modelSize = modelBox.getSize(new THREE.Vector3());
+  const meshSize = meshBox.getSize(new THREE.Vector3());
+
+  if (modelSize.x <= 1e-6 || modelSize.y <= 1e-6 || modelSize.z <= 1e-6) return false;
+  if (meshSize.y <= 1e-6) return false;
+
+  const distanceFromTop = modelBox.max.y - meshBox.max.y;
+  const widthRatio = meshSize.x / modelSize.x;
+  const depthRatio = meshSize.z / modelSize.z;
+  const footprintRatio = (meshSize.x * meshSize.z) / (modelSize.x * modelSize.z);
+
+  return (
+    distanceFromTop <= 0.05 &&
+    meshSize.y <= 0.08 &&
+    meshSize.x > meshSize.y * 3 &&
+    meshSize.z > meshSize.y * 3 &&
+    widthRatio >= 0.45 &&
+    depthRatio >= 0.45 &&
+    footprintRatio >= 0.2
+  );
+}
+
+function applySharedCountertopToGlb(model: THREE.Object3D): number {
+  const modelBox = new THREE.Box3().setFromObject(model);
+  let matched = 0;
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+
+    const meshBox = new THREE.Box3().setFromObject(child);
+    if (!isGlbCountertopCandidate(meshBox, modelBox)) return;
+    child.material = countertopMaterial;
+    child.userData.isCountertop = true;
+    matched += 1;
+  });
+
+  return matched;
+}
+
 function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Mesh; depth: number } {
   const isUpper = mod.type === 'upper' || mod.type === 'antresol';
   const depth = mod.depth || (isUpper ? UPPER_DEPTH : 560);
@@ -198,7 +256,9 @@ function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Me
   } else if (isUpper) {
     group = createUpperCabinet(mod.width, depth, mod.height || UPPER_HEIGHT);
   } else {
-    group = createLowerCabinet(mod.width, depth, mod.height);
+    group = createLowerCabinet(mod.width, depth, mod.height, {
+      includeCountertop: shouldIncludeCountertop(mod),
+    });
   }
 
   group.userData = { moduleId: mod.id, type: mod.type };
@@ -361,11 +421,18 @@ async function loadGlbModule(
 
   removeSceneObjectByName(scene, `glb-${mod.id}`);
   removeSceneObjectByName(scene, `placeholder-${mod.id}`);
-
   const wrapper = new THREE.Group();
   wrapper.name = `glb-${mod.id}`;
   wrapper.userData = { moduleId: mod.id, type: mod.type, wall, glbFile: mod.glbFile };
+  const glbCountertopMatches = shouldIncludeCountertop(mod) && canReuseGlbCountertop(mod)
+    ? applySharedCountertopToGlb(result.model)
+    : 0;
   wrapper.add(result.model);
+  if (mod.type === 'lower' && mod.kind !== "plate" && shouldIncludeCountertop(mod) && glbCountertopMatches === 0) {
+    wrapper.add(createLowerCountertop(mod.width, mod.depth, mod.height));
+  } else if (mod.type === 'corner' && glbCountertopMatches === 0) {
+    wrapper.add(createCornerCountertop(mod.width, mod.depth, mod.height));
+  }
 
   const y = getModuleY(mod);
 
@@ -572,13 +639,11 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
   // Plinth strip removed — fridge/penal and lower cabinets share the same floor level
 
-  // ── Place appliances (sink, cooktop) on countertop at anchor positions ──
-  // Anchors with glbFile get async-loaded; procedural models serve as placeholders.
+  // ── Anchor appliance GLBs (sink, cooktop) ──
+  // Cabinet bodies are placed by the algorithm (СМ / ПМ). Queue anchor GLBs if available.
   const applianceGlbQueue: { anchor: Anchor; name: string; wall: 'back' | 'left' }[] = [];
 
   if (wallAnchors && wallAnchors.length > 0) {
-    const ctTop = mm(COUNTERTOP_TOP_MM);
-    const CT_DEPTH_Z = mm(280);
     for (let wi = 0; wi < wallAnchors.length; wi++) {
       const wa = wallAnchors[wi];
       const isLeftWall = isLShaped && wi === 1;
@@ -586,40 +651,9 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
       for (const anchor of wa.anchors) {
         const applianceName = `appliance-${anchor.type}-${wi}`;
 
-        // Procedural placeholder
-        let appliance: THREE.Group | null = null;
-        if (anchor.type === 'sink') {
-          appliance = createSink(anchor.width);
-        } else if (anchor.type === 'cooktop') {
-          appliance = createCooktop(anchor.width);
-        }
-
-        if (!appliance) continue;
-
-        if (isLeftWall) {
-          const zPos = mm(anchor.position + anchor.width / 2);
-          appliance.position.set(CT_DEPTH_Z, ctTop, zPos);
-          appliance.rotation.y = -Math.PI / 2;
-        } else {
-          const xPos = mm(anchor.position + anchor.width / 2);
-          appliance.position.set(xPos, ctTop, CT_DEPTH_Z);
-        }
-
-        appliance.name = applianceName;
-        scene.add(appliance);
-
-        // Anchor type label above appliance
-        const anchorLabel = anchor.type.charAt(0).toUpperCase() + anchor.type.slice(1);
-        const anchorLabelY = ctTop + mm(60);
-        if (isLeftWall) {
-          const zPos = mm(anchor.position + anchor.width / 2);
-          scene.add(createLabel(anchorLabel, CT_DEPTH_Z, anchorLabelY, zPos, 'rgba(30,100,200,0.8)'));
-        } else {
-          const xPos = mm(anchor.position + anchor.width / 2);
-          scene.add(createLabel(anchorLabel, xPos, anchorLabelY, CT_DEPTH_Z, 'rgba(30,100,200,0.8)'));
-        }
-
-        // Queue GLB replacement if catalog model available
+        // Sink & cooktop are now placed as real cabinets (СМ / ПМ) by the
+        // algorithm, so we skip procedural appliance placeholders entirely.
+        // Only queue GLB replacement if the anchor has a catalog model.
         if (anchor.glbFile) {
           applianceGlbQueue.push({
             anchor,
