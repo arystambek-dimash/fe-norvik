@@ -289,7 +289,7 @@ describe('planKitchen integration', () => {
     }
   });
 
-  it('does not place drawer unit when there is no room after the sink', () => {
+  it('places drawer unit before the sink when no room after', () => {
     const sinkModule = makeCabinet({
       width: 600, article: 'СМ 600',
       kind: CabinetKind.SINK, subtype: CabinetSubtype.SINK_BASE,
@@ -311,12 +311,13 @@ describe('planKitchen integration', () => {
     });
     const variants = planKitchen(input);
     expect(variants.length).toBeGreaterThan(0);
-    // Drawer must not move before the sink to satisfy the sink -> drawer rule.
+    // Drawer should be placed before the sink when no room after
     for (const v of variants) {
       const drawer = v.plan.walls[0].modules.find(
         (m) => m.kind === CabinetKind.DRAWER_UNIT && m.subtype === CabinetSubtype.DRAWER_ONLY,
       );
-      expect(drawer).toBeUndefined();
+      expect(drawer).toBeDefined();
+      expect(drawer!.x).toBeLessThan(2200); // placed before sink
     }
   });
 

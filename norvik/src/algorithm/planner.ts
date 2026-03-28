@@ -612,7 +612,7 @@ function getCompatibleAntresolPrefixes(lowerArticle: string): string[] {
 function buildAntresolIndex(modules: CabinetRead[]): Map<number, CabinetRead[]> {
   const index = new Map<number, CabinetRead[]>();
   for (const a of modules) {
-    if (a.kind !== CabinetKind.ANTRESOL) continue;
+    if (a.kind !== CabinetKind.ANTRESOL && a.kind !== CabinetKind.ANTRESOL_FRIDGE) continue;
     if (!index.has(a.width)) index.set(a.width, []);
     index.get(a.width)!.push(a);
   }
@@ -632,24 +632,38 @@ function solveAntresolForWall(
     // Antresols go above tall modules (П) and upper modules (ВП)
     if (mod.type !== 'tall' && mod.type !== 'upper') continue;
 
-    // Resolve the original cabinet to get its article
+    // Resolve the original cabinet to get its article/kind
     const cab = idMap.get(mod.cabinetId);
     if (!cab) continue;
 
-    const compatiblePrefixes = getCompatibleAntresolPrefixes(cab.article);
-    if (compatiblePrefixes.length === 0) continue;
+    let match: CabinetRead | undefined;
 
-    // Find an antresol with matching width and compatible article prefix
-    const candidates = antresolByWidth.get(mod.width);
-    const match = candidates?.find(
-      (a) => compatiblePrefixes.some((prefix) => a.article.startsWith(prefix)),
-    );
+    // For fridge/penal: match antresol by kind (ANTRESOL_FRIDGE) and width
+    if (cab.kind === CabinetKind.FRIDGE || cab.kind === CabinetKind.PENAL || cab.kind === CabinetKind.PENAL_APPLIANCE_HOUSING) {
+      const candidates = antresolByWidth.get(mod.width);
+      match = candidates?.find((a) => a.kind === CabinetKind.ANTRESOL_FRIDGE);
+    } else {
+      // For other modules: match by article prefix (existing logic)
+      const compatiblePrefixes = getCompatibleAntresolPrefixes(cab.article);
+      if (compatiblePrefixes.length === 0) continue;
+      const candidates = antresolByWidth.get(mod.width);
+      match = candidates?.find(
+        (a) => compatiblePrefixes.some((prefix) => a.article.startsWith(prefix)),
+      );
+    }
+
     if (!match) continue;
 
-    // Calculate Y offset based on parent module type
+    // Calculate Y offset — all antresols align at the same level (UPPER_Y + UPPER_HEIGHT)
+    const upperAntresolY = UPPER_Y + UPPER_HEIGHT;
+    const isFridgeOrPenal = cab.kind === CabinetKind.FRIDGE
+      || cab.kind === CabinetKind.PENAL
+      || cab.kind === CabinetKind.PENAL_APPLIANCE_HOUSING;
     const yOffset = mod.type === 'upper'
-      ? UPPER_Y + mod.height  // upper starts at UPPER_Y
-      : mod.height;           // tall starts from floor
+      ? UPPER_Y + mod.height       // upper starts at UPPER_Y
+      : isFridgeOrPenal
+        ? upperAntresolY            // fridge/penal: align with upper antresols
+        : mod.height;               // other tall: from their own height
 
     placed.push(cabinetToModule(match, mod.x, mod.wallId, {
       type: 'antresol',
@@ -917,21 +931,29 @@ function placeDrawerUnit(
         Math.abs(m.x - sinkEnd) <= 1,
     );
 
-    const insertX = dishwasher
+    const insertXAfter = dishwasher
       ? dishwasher.x + dishwasher.width
       : sinkEnd;
 
-    // Check if drawer zone overlaps with any anchor (cooktop, oven, etc.)
-    const overlapsAnchor = wallConfig.anchors.some((a) => {
+    // Try placing after sink first, then before sink if it doesn't fit
+    const overlapsAnchorAfter = wallConfig.anchors.some((a) => {
       if (a === anchor) return false;
-      return insertX < a.position + a.width && insertX + dw > a.position;
+      return insertXAfter < a.position + a.width && insertXAfter + dw > a.position;
     });
 
-    if (insertX + dw > wallConfig.length || overlapsAnchor) {
-      // Drawer must stay in the sink sequence only.
-      // If it does not fit right after the sink/dishwasher chain, skip it.
-      continue;
-    }
+    const fitsAfter = insertXAfter + dw <= wallConfig.length && !overlapsAnchorAfter;
+
+    // Try placing before sink (if after doesn't fit)
+    const sinkStart = sinkModule ? sinkModule.x : anchor.position;
+    const insertXBefore = sinkStart - dw;
+    const overlapsAnchorBefore = wallConfig.anchors.some((a) => {
+      if (a === anchor) return false;
+      return insertXBefore < a.position + a.width && insertXBefore + dw > a.position;
+    });
+    const fitsBefore = insertXBefore >= 0 && !overlapsAnchorBefore;
+
+    const insertX = fitsAfter ? insertXAfter : fitsBefore ? insertXBefore : -1;
+    if (insertX < 0) continue;
 
     const finalEnd = insertX + dw;
 

@@ -6,6 +6,7 @@ export enum CabinetKind {
   FRIDGE = "fridge",
   PENAL = "penal",
   ANTRESOL = "antresol",
+  ANTRESOL_FRIDGE = "antresol_fridge",
   APPLIANCE_HOUSING = "appliance_housing",
   PENAL_APPLIANCE_HOUSING = "penal_appliance_housing",
 }

@@ -6,7 +6,6 @@ import {
   createCornerCabinet,
   createTallCabinet,
   createFillerPanel,
-  createPlinth,
   createSink,
   createCooktop,
   mm,
@@ -361,6 +360,7 @@ async function loadGlbModule(
   if (!result) return;
 
   removeSceneObjectByName(scene, `glb-${mod.id}`);
+  removeSceneObjectByName(scene, `placeholder-${mod.id}`);
 
   const wrapper = new THREE.Group();
   wrapper.name = `glb-${mod.id}`;
@@ -570,35 +570,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
     );
   }
 
-  // Plinth strip — back wall modules
-  const backWallLowers = plan.walls[0]?.modules.filter(
-    (m) => m.type === 'lower' || m.type === 'tall',
-  ) ?? [];
-  if (backWallLowers.length > 0) {
-    const minX = Math.min(...backWallLowers.map((m) => m.x));
-    const maxX = Math.max(...backWallLowers.map((m) => m.x + m.width));
-    const totalWidth = maxX - minX;
-    const plinth = createPlinth(totalWidth);
-    plinth.position.x = mm(minX + totalWidth / 2);
-    plinth.position.z = mm(280);
-    scene.add(plinth);
-  }
-
-  // Plinth strip — left wall modules (if L-shaped)
-  if (isLShaped && plan.walls[1]) {
-    const leftWallLowers = plan.walls[1].modules.filter(
-      (m) => m.type === 'lower' || m.type === 'tall',
-    );
-    if (leftWallLowers.length > 0) {
-      const minZ = Math.min(...leftWallLowers.map((m) => m.x));
-      const maxZ = Math.max(...leftWallLowers.map((m) => m.x + m.width));
-      const totalWidth = maxZ - minZ;
-      const plinth = createPlinth(totalWidth);
-      plinth.rotation.y = -Math.PI / 2;
-      plinth.position.set(mm(280), 0, mm(minZ + totalWidth / 2));
-      scene.add(plinth);
-    }
-  }
+  // Plinth strip removed — fridge/penal and lower cabinets share the same floor level
 
   // ── Place appliances (sink, cooktop) on countertop at anchor positions ──
   // Anchors with glbFile get async-loaded; procedural models serve as placeholders.
