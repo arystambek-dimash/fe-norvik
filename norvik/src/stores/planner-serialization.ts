@@ -44,6 +44,8 @@ export interface SerializablePlannerState {
   fridgeSide: 'left' | 'right';
   countertopColor: string | null;
   countertopTextureUrl: string | null;
+  facadeColor: string | null;
+  facadeTextureUrl: string | null;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -67,6 +69,8 @@ interface SerializedWorkspaceContent {
   fridgeSide: 'left' | 'right';
   countertopColor: string | null;
   countertopTextureUrl: string | null;
+  facadeColor: string | null;
+  facadeTextureUrl: string | null;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -90,6 +94,8 @@ const DEFAULTS: SerializablePlannerState = {
   fridgeSide: 'right',
   countertopColor: null,
   countertopTextureUrl: null,
+  facadeColor: null,
+  facadeTextureUrl: null,
   variants: [],
   selectedVariantIndex: 0,
 };
@@ -124,6 +130,8 @@ export function serializeState(
     fridgeSide: state.fridgeSide,
     countertopColor: state.countertopColor,
     countertopTextureUrl: state.countertopTextureUrl,
+    facadeColor: state.facadeColor,
+    facadeTextureUrl: state.facadeTextureUrl,
     variants: state.variants,
     selectedVariantIndex: state.selectedVariantIndex,
   };
@@ -299,6 +307,14 @@ export function deserializeState(
   result.countertopTextureUrl = typeof content.countertopTextureUrl === 'string'
     ? content.countertopTextureUrl
     : DEFAULTS.countertopTextureUrl;
+
+  // Facade customization
+  result.facadeColor = typeof content.facadeColor === 'string'
+    ? content.facadeColor
+    : DEFAULTS.facadeColor;
+  result.facadeTextureUrl = typeof content.facadeTextureUrl === 'string'
+    ? content.facadeTextureUrl
+    : DEFAULTS.facadeTextureUrl;
 
   // Variants (opaque data — accept arrays as-is)
   result.variants = Array.isArray(content.variants)

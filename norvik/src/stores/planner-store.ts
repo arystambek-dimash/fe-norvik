@@ -61,6 +61,10 @@ interface PlannerState {
   countertopColor: string | null;
   countertopTextureUrl: string | null;
 
+  // Facade (door) customization
+  facadeColor: string | null;
+  facadeTextureUrl: string | null;
+
   // 3D viewer
   selectedModuleId: string | null;
 
@@ -85,6 +89,8 @@ interface PlannerState {
   setFridgeSide: (v: 'left' | 'right') => void;
   setCountertopColor: (color: string | null) => void;
   setCountertopTextureUrl: (url: string | null) => void;
+  setFacadeColor: (color: string | null) => void;
+  setFacadeTextureUrl: (url: string | null) => void;
   setSelectedModuleId: (id: string | null) => void;
   reset: () => void;
 }
@@ -106,6 +112,8 @@ const initialState = {
   fridgeSide: 'right' as 'left' | 'right',
   countertopColor: null as string | null,
   countertopTextureUrl: null as string | null,
+  facadeColor: null as string | null,
+  facadeTextureUrl: null as string | null,
   variants: [] as any[],
   selectedVariantIndex: 0,
   selectedModuleId: null,
@@ -128,6 +136,8 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setFridgeSide: (v) => set({ fridgeSide: v }),
   setCountertopColor: (color) => set({ countertopColor: color, countertopTextureUrl: null }),
   setCountertopTextureUrl: (url) => set({ countertopTextureUrl: url, countertopColor: null }),
+  setFacadeColor: (color) => set({ facadeColor: color, facadeTextureUrl: null }),
+  setFacadeTextureUrl: (url) => set({ facadeTextureUrl: url, facadeColor: null }),
   setSelectedModuleId: (id) => set({ selectedModuleId: id }),
   reset: () => set(initialState),
 }));

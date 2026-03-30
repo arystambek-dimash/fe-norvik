@@ -46,6 +46,13 @@ export const countertopMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.05,
 });
 
+/** Shared facade (door) material — mutate directly to change all door panels at once. */
+export const facadeMaterial = new THREE.MeshStandardMaterial({
+  color: COLORS.cabinetDoor,
+  roughness: 0.65,
+  metalness: 0.0,
+});
+
 export function createLowerCountertop(
   width: number,
   depth: number,
@@ -146,7 +153,7 @@ export function createLowerCabinet(
   const doorW = w - doorMargin * 2;
   const doorH = h - doorMargin * 2;
   const doorGeo = new THREE.BoxGeometry(doorW, doorH, mm(3));
-  const door = new THREE.Mesh(doorGeo, woodMaterial(COLORS.cabinetDoor));
+  const door = new THREE.Mesh(doorGeo, facadeMaterial);
   door.position.set(0, h / 2, d / 2 + mm(1));
   door.castShadow = true;
   group.add(door);
@@ -218,7 +225,7 @@ export function createUpperCabinet(
     h - doorMargin * 2,
     mm(3),
   );
-  const door = new THREE.Mesh(doorGeo, woodMaterial(COLORS.cabinetDoor));
+  const door = new THREE.Mesh(doorGeo, facadeMaterial);
   door.position.set(0, h / 2, d / 2 + mm(1));
   door.castShadow = true;
   group.add(door);
@@ -290,7 +297,7 @@ export function createCornerCabinet(
   const doorH = h - doorMargin * 2;
   if (doorAW > 0) {
     const doorAGeo = new THREE.BoxGeometry(doorAW, doorH, mm(3));
-    const doorA = new THREE.Mesh(doorAGeo, woodMaterial(COLORS.cabinetDoor));
+    const doorA = new THREE.Mesh(doorAGeo, facadeMaterial);
     doorA.position.set(d + doorAW / 2, h / 2, d + mm(1));
     doorA.castShadow = true;
     group.add(doorA);
@@ -309,7 +316,7 @@ export function createCornerCabinet(
   const doorBW = w - d - doorMargin * 2;
   if (doorBW > 0) {
     const doorBGeo = new THREE.BoxGeometry(mm(3), doorH, doorBW);
-    const doorB = new THREE.Mesh(doorBGeo, woodMaterial(COLORS.cabinetDoor));
+    const doorB = new THREE.Mesh(doorBGeo, facadeMaterial);
     doorB.position.set(d + mm(1), h / 2, d + doorBW / 2);
     doorB.castShadow = true;
     group.add(doorB);
@@ -364,7 +371,7 @@ export function createTallCabinet(
   const lowerDoorH = dividerY - doorMargin * 2 - dividerH / 2;
   if (lowerDoorH > 0) {
     const lowerDoorGeo = new THREE.BoxGeometry(doorW, lowerDoorH, mm(3));
-    const lowerDoor = new THREE.Mesh(lowerDoorGeo, woodMaterial(COLORS.cabinetDoor));
+    const lowerDoor = new THREE.Mesh(lowerDoorGeo, facadeMaterial);
     lowerDoor.position.set(0, lowerDoorH / 2 + doorMargin, d / 2 + mm(1));
     lowerDoor.castShadow = true;
     group.add(lowerDoor);
@@ -400,7 +407,7 @@ export function createTallCabinet(
   const upperDoorH = h - dividerY - doorMargin * 2 - dividerH / 2;
   if (upperDoorH > 0) {
     const upperDoorGeo = new THREE.BoxGeometry(doorW, upperDoorH, mm(3));
-    const upperDoor = new THREE.Mesh(upperDoorGeo, woodMaterial(COLORS.cabinetDoor));
+    const upperDoor = new THREE.Mesh(upperDoorGeo, facadeMaterial);
     upperDoor.position.set(0, dividerY + dividerH / 2 + upperDoorH / 2 + doorMargin, d / 2 + mm(1));
     upperDoor.castShadow = true;
     group.add(upperDoor);

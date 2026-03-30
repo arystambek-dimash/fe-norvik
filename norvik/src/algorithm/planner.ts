@@ -626,6 +626,11 @@ function solveAntresolForWall(
 ): PlacedModule[] {
   if (antresolByWidth.size === 0) return [];
 
+  // Find the actual top of upper cabinets on this wall to align fridge/penal antresols
+  const upperTop = wallModules
+    .filter((m) => m.type === 'upper')
+    .reduce((max, m) => Math.max(max, UPPER_Y + m.height), UPPER_Y + UPPER_HEIGHT);
+
   const placed: PlacedModule[] = [];
 
   for (const mod of wallModules) {
@@ -654,15 +659,14 @@ function solveAntresolForWall(
 
     if (!match) continue;
 
-    // Calculate Y offset — all antresols align at the same level (UPPER_Y + UPPER_HEIGHT)
-    const upperAntresolY = UPPER_Y + UPPER_HEIGHT;
+    // Calculate Y offset — fridge/penal antresols align with upper antresols
     const isFridgeOrPenal = cab.kind === CabinetKind.FRIDGE
       || cab.kind === CabinetKind.PENAL
       || cab.kind === CabinetKind.PENAL_APPLIANCE_HOUSING;
     const yOffset = mod.type === 'upper'
       ? UPPER_Y + mod.height       // upper starts at UPPER_Y
       : isFridgeOrPenal
-        ? upperAntresolY            // fridge/penal: align with upper antresols
+        ? upperTop                  // fridge/penal: align with actual upper tops
         : mod.height;               // other tall: from their own height
 
     placed.push(cabinetToModule(match, mod.x, mod.wallId, {

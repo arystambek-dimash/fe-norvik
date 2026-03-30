@@ -1,20 +1,28 @@
-import { useEffect, useCallback, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { workspacesApi } from "@/api/workspaces";
+import {
+  buildKitchenPhotoPrompt,
+  generateKitchenPhoto,
+  prepareReferenceImageForReplicate,
+} from "@/api/replicate";
 import { usePlannerStore } from "@/stores/planner-store";
 import { serializeState, deserializeState } from "@/stores/planner-serialization";
 import { PlannerWizard } from "@/pages/workspaces/wizard/wizard-layout";
 import VariantPanel from "@/pages/workspaces/panels/variant-panel";
 import ModulePanel from "@/pages/workspaces/panels/module-panel";
 import CountertopPanel from "@/pages/workspaces/panels/countertop-panel";
+import FacadePanel from "@/pages/workspaces/panels/facade-panel";
 import GoldenTablePanel from "@/pages/workspaces/panels/golden-table-panel";
 import { KitchenViewer } from "@/components/viewer3d";
+import type { KitchenViewerHandle } from "@/components/viewer3d";
 import { planKitchen } from "@/algorithm";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Save, Loader2, PenTool } from "lucide-react";
+import PhotoGenerationDialog from "@/pages/workspaces/photo-generation-dialog";
+import { ArrowLeft, Save, Loader2, PenTool, Sparkles } from "lucide-react";
 import type { KitchenPlan } from "@/algorithm/types";
 import type { KitchenStoreState } from "@/algorithm/derive-input";
 import { deriveInput } from "@/algorithm";
@@ -27,9 +35,20 @@ export default function WorkspaceEditorPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workspaceId = Number(id);
+  const viewerRef = useRef<KitchenViewerHandle | null>(null);
+  const generatedPhotoUrlRef = useRef<string | null>(null);
+  const photoAbortRef = useRef<AbortController | null>(null);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [countertopSelected, setCountertopSelected] = useState(false);
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [isPhotoGenerating, setIsPhotoGenerating] = useState(false);
+  const [photoPrompt, setPhotoPrompt] = useState(
+    "Тёплый естественный свет, дорогая интерьерная съёмка, максимально реалистичные материалы.",
+  );
+  const [photoStatusMessage, setPhotoStatusMessage] = useState<string | null>(null);
+  const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null);
+  const [generatedPhotoUrl, setGeneratedPhotoUrl] = useState<string | null>(null);
 
   // ---- Planner store selectors ----
   const roomWidth = usePlannerStore((s) => s.roomWidth);
@@ -45,6 +64,8 @@ export default function WorkspaceEditorPage() {
   const fridgeSide = usePlannerStore((s) => s.fridgeSide);
   const countertopColor = usePlannerStore((s) => s.countertopColor);
   const countertopTextureUrl = usePlannerStore((s) => s.countertopTextureUrl);
+  const facadeColor = usePlannerStore((s) => s.facadeColor);
+  const facadeTextureUrl = usePlannerStore((s) => s.facadeTextureUrl);
   const setSelectedModuleId = usePlannerStore((s) => s.setSelectedModuleId);
   const reset = usePlannerStore((s) => s.reset);
 
@@ -85,6 +106,8 @@ export default function WorkspaceEditorPage() {
       usePlannerStore.setState({
         countertopColor: restored.countertopColor ?? null,
         countertopTextureUrl: restored.countertopTextureUrl ?? null,
+        facadeColor: restored.facadeColor ?? null,
+        facadeTextureUrl: restored.facadeTextureUrl ?? null,
       });
       if (restored.variants) store.setVariants(restored.variants);
       if (restored.selectedVariantIndex !== undefined)
@@ -98,6 +121,14 @@ export default function WorkspaceEditorPage() {
       reset();
     };
   }, [reset]);
+
+  useEffect(() => {
+    return () => {
+      if (generatedPhotoUrlRef.current) {
+        URL.revokeObjectURL(generatedPhotoUrlRef.current);
+      }
+    };
+  }, []);
 
   // ---- Save mutation ----
   const saveMutation = useMutation({
@@ -133,6 +164,8 @@ export default function WorkspaceEditorPage() {
       fridgeSide: state.fridgeSide,
       countertopColor: state.countertopColor,
       countertopTextureUrl: state.countertopTextureUrl,
+      facadeColor: state.facadeColor,
+      facadeTextureUrl: state.facadeTextureUrl,
       variants: state.variants,
       selectedVariantIndex: state.selectedVariantIndex,
     });
@@ -227,6 +260,72 @@ export default function WorkspaceEditorPage() {
     setVariants([]);
   }, [setVariants]);
 
+  const handleCancelPhoto = useCallback(() => {
+    photoAbortRef.current?.abort();
+    photoAbortRef.current = null;
+  }, []);
+
+  const handleGeneratePhoto = useCallback(async () => {
+    if (!activePlan) {
+      toast.error("Сначала соберите вариант кухни, потом запускайте фото генерацию.");
+      return;
+    }
+
+    const viewer = viewerRef.current;
+    if (!viewer) {
+      toast.error("3D viewer ещё не готов к съёмке.");
+      return;
+    }
+
+    // Cancel any in-flight generation
+    photoAbortRef.current?.abort();
+    const abortController = new AbortController();
+    photoAbortRef.current = abortController;
+
+    setPhotoDialogOpen(true);
+    setIsPhotoGenerating(true);
+    setPhotoStatusMessage("Выставляем камеру в правильный угол и снимаем чистый референс...");
+
+    try {
+      const referenceImage = await viewer.captureReferenceImage();
+      setReferencePreviewUrl(referenceImage);
+
+      setPhotoStatusMessage("Оптимизируем снимок для Replicate...");
+      const optimizedReferenceImage = await prepareReferenceImageForReplicate(referenceImage);
+      setReferencePreviewUrl(optimizedReferenceImage);
+
+      const photoUrl = await generateKitchenPhoto({
+        imageDataUrl: optimizedReferenceImage,
+        prompt: buildKitchenPhotoPrompt(photoPrompt),
+        signal: abortController.signal,
+        onStatusChange: setPhotoStatusMessage,
+      });
+
+      if (generatedPhotoUrlRef.current) {
+        URL.revokeObjectURL(generatedPhotoUrlRef.current);
+      }
+
+      generatedPhotoUrlRef.current = photoUrl;
+      setGeneratedPhotoUrl(photoUrl);
+      setPhotoStatusMessage("Фото готово. Можно скачать или сгенерировать заново.");
+      toast.success("Реалистичное фото кухни готово.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setPhotoStatusMessage("Генерация отменена.");
+        return;
+      }
+      console.error("Photo generation failed:", err);
+      const msg = err instanceof Error ? err.message : "Не удалось сделать фото генерацию.";
+      setPhotoStatusMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsPhotoGenerating(false);
+      if (photoAbortRef.current === abortController) {
+        photoAbortRef.current = null;
+      }
+    }
+  }, [activePlan, photoPrompt]);
+
   // ---- Loading ----
   if (isLoading) {
     return (
@@ -292,6 +391,18 @@ export default function WorkspaceEditorPage() {
           </Button>
         )}
 
+        {hasVariants && (
+          <Button
+            variant="outline"
+            className="rounded-xl gap-2 border-primary/20 bg-background/80"
+            onClick={() => setPhotoDialogOpen(true)}
+            disabled={!activePlan}
+          >
+            <Sparkles className="h-4 w-4 text-primary" />
+            Сделать фото генерацию
+          </Button>
+        )}
+
         <Button
           className="rounded-xl gap-2"
           onClick={handleSave}
@@ -337,14 +448,18 @@ export default function WorkspaceEditorPage() {
             ) : (
               <div className="h-full rounded-2xl border border-border/60 overflow-hidden bg-background shadow-sm">
                 <KitchenViewer
+                  ref={viewerRef}
                   plan={activePlan}
                   roomConfig={roomConfig}
                   wallAnchors={wallAnchors}
                   selectedModuleId={selectedModuleId}
+                  fridgeSide={fridgeSide}
                   onSelectModule={handleSelectModule}
                   onSelectCountertop={handleSelectCountertop}
                   countertopColor={countertopColor}
                   countertopTextureUrl={countertopTextureUrl}
+                  facadeColor={facadeColor}
+                  facadeTextureUrl={facadeTextureUrl}
                 />
               </div>
             )}
@@ -357,9 +472,23 @@ export default function WorkspaceEditorPage() {
           >
             <ModulePanel onColorChange={() => {}} />
             <CountertopPanel highlighted={countertopSelected} />
+            <FacadePanel />
           </aside>
         </div>
       )}
+
+      <PhotoGenerationDialog
+        open={photoDialogOpen}
+        onOpenChange={setPhotoDialogOpen}
+        prompt={photoPrompt}
+        statusMessage={photoStatusMessage}
+        isGenerating={isPhotoGenerating}
+        referenceImageUrl={referencePreviewUrl}
+        generatedImageUrl={generatedPhotoUrl}
+        onPromptChange={setPhotoPrompt}
+        onGenerate={handleGeneratePhoto}
+        onCancel={handleCancelPhoto}
+      />
     </div>
   );
 }

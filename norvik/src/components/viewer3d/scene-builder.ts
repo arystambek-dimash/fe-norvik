@@ -3,6 +3,7 @@ import type { KitchenPlan, PlacedModule, Anchor } from '@/algorithm/types';
 import { CabinetKind, CabinetSubtype } from '@/types/enums';
 import {
   countertopMaterial,
+  facadeMaterial,
   createLowerCabinet,
   createLowerCountertop,
   createUpperCabinet,
@@ -169,6 +170,7 @@ function createLabel(text: string, x: number, y: number, z: number, bgColor?: st
   const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
   const sprite = new THREE.Sprite(mat);
   sprite.name = `label-${text}`;
+  sprite.userData.isSceneLabel = true;
 
   // Scale sprite proportional to canvas aspect ratio
   const aspect = texture.image.width / texture.image.height;
@@ -195,6 +197,15 @@ function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subt
 
 function canReuseGlbCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
   return mod.type === 'corner' || mod.kind === CabinetKind.DOOR || mod.kind === CabinetKind.DRAWER_UNIT;
+}
+
+function shouldApplyFacade(mod: Pick<PlacedModule, 'type' | 'kind'>): boolean {
+  if (mod.type === 'filler') return false;
+  return (
+    mod.kind !== CabinetKind.FRIDGE &&
+    mod.kind !== CabinetKind.PLATE &&
+    mod.kind !== CabinetKind.SINK
+  );
 }
 
 function isGlbCountertopCandidate(
@@ -237,6 +248,128 @@ function applySharedCountertopToGlb(model: THREE.Object3D): number {
   });
 
   return matched;
+}
+
+/**
+ * Detect front-facing door panels in a GLB model and apply the shared facade material.
+ * Door panels are thin meshes at the front (max Z) of the model, covering a significant
+ * portion of the model's width and height.
+ */
+function applySharedFacadeToGlb(model: THREE.Object3D): number {
+  const modelBox = new THREE.Box3().setFromObject(model);
+  const modelSize = modelBox.getSize(new THREE.Vector3());
+
+  if (modelSize.x <= 1e-6 || modelSize.y <= 1e-6 || modelSize.z <= 1e-6) return 0;
+
+  let matched = 0;
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    if (child.userData.isCountertop) return; // skip countertop meshes
+
+    const meshBox = new THREE.Box3().setFromObject(child);
+    const meshSize = meshBox.getSize(new THREE.Vector3());
+
+    // Door panel heuristic:
+    // - Thin in depth (Z) — less than 15% of model depth
+    // - Covers significant width (>40% of model width) and height (>30% of model height)
+    // - Positioned at the front of the model (for imported GLBs this is near min Z)
+    const depthRatio = meshSize.z / modelSize.z;
+    const widthRatio = meshSize.x / modelSize.x;
+    const heightRatio = meshSize.y / modelSize.y;
+    const distanceFromFront = meshBox.min.z - modelBox.min.z;
+
+    if (
+      depthRatio <= 0.15 &&
+      widthRatio >= 0.4 &&
+      heightRatio >= 0.3 &&
+      distanceFromFront <= modelSize.z * 0.1
+    ) {
+      child.material = facadeMaterial;
+      child.userData.isFacade = true;
+      matched += 1;
+    }
+  });
+
+  return matched;
+}
+
+function createFacadeFallback(
+  mod: Pick<PlacedModule, 'type' | 'width' | 'height' | 'depth'>,
+  scaledSize?: THREE.Vector3,
+): THREE.Group | null {
+  const group = new THREE.Group();
+  group.name = 'facade-fallback';
+
+  const w = scaledSize?.x ?? mm(mod.width);
+  const d = scaledSize?.z ?? mm(mod.depth);
+  const h = scaledSize?.y ?? mm(mod.height);
+  const doorMargin = mm(3);
+  const frontZ = -d / 2 - mm(1.5);
+
+  const doorGeo = new THREE.BoxGeometry(
+      w - doorMargin * 2,
+      h - doorMargin * 2,
+      mm(3),
+  );
+  const door = new THREE.Mesh(doorGeo, facadeMaterial);
+  door.position.set(0, h / 2, frontZ);
+  door.castShadow = true;
+  door.userData.isFacade = true;
+  group.add(door);
+
+  if (mod.type === 'corner') {
+    const doorH = h - doorMargin * 2;
+    const doorAW = w - d - doorMargin * 2;
+    if (doorAW > 0) {
+      const doorAGeo = new THREE.BoxGeometry(doorAW, doorH, mm(3));
+      const doorA = new THREE.Mesh(doorAGeo, facadeMaterial);
+      doorA.position.set(-(d + doorAW / 2), h / 2, -(d + mm(1.5)));
+      doorA.castShadow = true;
+      doorA.userData.isFacade = true;
+      group.add(doorA);
+    }
+
+    const doorBW = w - d - doorMargin * 2;
+    if (doorBW > 0) {
+      const doorBGeo = new THREE.BoxGeometry(mm(3), doorH, doorBW);
+      const doorB = new THREE.Mesh(doorBGeo, facadeMaterial);
+      doorB.position.set(-(d + mm(1.5)), h / 2, -(d + doorBW / 2));
+      doorB.castShadow = true;
+      doorB.userData.isFacade = true;
+      group.add(doorB);
+    }
+
+    return group.children.length > 0 ? group : null;
+  }
+
+  if (mod.type === 'tall') {
+    const doorW = w - doorMargin * 2;
+    const dividerY = h * 0.55;
+    const dividerH = mm(4);
+    const lowerDoorH = dividerY - doorMargin * 2 - dividerH / 2;
+    if (lowerDoorH > 0) {
+      const lowerDoorGeo = new THREE.BoxGeometry(doorW, lowerDoorH, mm(3));
+      const lowerDoor = new THREE.Mesh(lowerDoorGeo, facadeMaterial);
+      lowerDoor.position.set(0, lowerDoorH / 2 + doorMargin, frontZ);
+      lowerDoor.castShadow = true;
+      lowerDoor.userData.isFacade = true;
+      group.add(lowerDoor);
+    }
+
+    const upperDoorH = h - dividerY - doorMargin * 2 - dividerH / 2;
+    if (upperDoorH > 0) {
+      const upperDoorGeo = new THREE.BoxGeometry(doorW, upperDoorH, mm(3));
+      const upperDoor = new THREE.Mesh(upperDoorGeo, facadeMaterial);
+      upperDoor.position.set(0, dividerY + dividerH / 2 + upperDoorH / 2 + doorMargin, frontZ);
+      upperDoor.castShadow = true;
+      upperDoor.userData.isFacade = true;
+      group.add(upperDoor);
+    }
+
+    return group.children.length > 0 ? group : null;
+  }
+
+  return null;
 }
 
 function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Mesh; depth: number } {
@@ -427,7 +560,14 @@ async function loadGlbModule(
   const glbCountertopMatches = shouldIncludeCountertop(mod) && canReuseGlbCountertop(mod)
     ? applySharedCountertopToGlb(result.model)
     : 0;
+  const glbFacadeMatches = shouldApplyFacade(mod)
+    ? applySharedFacadeToGlb(result.model)
+    : 0;
   wrapper.add(result.model);
+  if (shouldApplyFacade(mod) && glbFacadeMatches === 0) {
+    const facadeFallback = createFacadeFallback(mod, result.scaledSize);
+    if (facadeFallback) wrapper.add(facadeFallback);
+  }
   if (mod.type === 'lower' && mod.kind !== "plate" && shouldIncludeCountertop(mod) && glbCountertopMatches === 0) {
     wrapper.add(createLowerCountertop(mod.width, mod.depth, mod.height));
   } else if (mod.type === 'corner' && glbCountertopMatches === 0) {
@@ -443,8 +583,8 @@ async function loadGlbModule(
     wrapper.rotation.y = -Math.PI / 2;
   } else {
     wrapper.position.set(mm(mod.x + mod.width / 2), y, result.scaledSize.z / 2);
+    wrapper.rotation.y = Math.PI;
   }
-  wrapper.rotation.y = Math.PI;
   scene.add(wrapper);
 }
 
