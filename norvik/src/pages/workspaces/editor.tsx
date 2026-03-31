@@ -44,7 +44,7 @@ export default function WorkspaceEditorPage() {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [isPhotoGenerating, setIsPhotoGenerating] = useState(false);
   const [photoPrompt, setPhotoPrompt] = useState(
-    "Тёплый естественный свет, дорогая интерьерная съёмка, максимально реалистичные материалы.",
+    "Тёплый естественный свет, дорогая интерьерная съёмка, максимально реалистичные материалы и текстуры.",
   );
   const [photoStatusMessage, setPhotoStatusMessage] = useState<string | null>(null);
   const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null);
@@ -61,7 +61,10 @@ export default function WorkspaceEditorPage() {
   const selectedModuleId = usePlannerStore((s) => s.selectedModuleId);
   const setVariants = usePlannerStore((s) => s.setVariants);
   const modules = usePlannerStore((s) => s.modules);
+  const lShapedSide = usePlannerStore((s) => s.lShapedSide);
   const fridgeSide = usePlannerStore((s) => s.fridgeSide);
+  const useInbuiltStove = usePlannerStore((s) => s.useInbuiltStove);
+  const selectedStoveId = usePlannerStore((s) => s.selectedStoveId);
   const countertopColor = usePlannerStore((s) => s.countertopColor);
   const countertopTextureUrl = usePlannerStore((s) => s.countertopTextureUrl);
   const facadeColor = usePlannerStore((s) => s.facadeColor);
@@ -86,6 +89,8 @@ export default function WorkspaceEditorPage() {
         roomDepth: restored.roomDepth,
         wallHeight: restored.wallHeight,
         layoutType: restored.layoutType,
+        lShapedSide: restored.lShapedSide,
+        sideWallWidth: restored.sideWallWidth,
       });
       if (restored.walls) store.setWalls(restored.walls);
       if (restored.selectedCatalogId !== undefined)
@@ -103,6 +108,10 @@ export default function WorkspaceEditorPage() {
         store.setDrawerHousingWidth(restored.drawerHousingWidth);
       if (restored.fridgeSide !== undefined)
         store.setFridgeSide(restored.fridgeSide);
+      if (restored.useInbuiltStove !== undefined)
+        store.setUseInbuiltStove(restored.useInbuiltStove);
+      if (restored.selectedStoveId !== undefined)
+        store.setSelectedStoveId(restored.selectedStoveId);
       usePlannerStore.setState({
         countertopColor: restored.countertopColor ?? null,
         countertopTextureUrl: restored.countertopTextureUrl ?? null,
@@ -153,12 +162,16 @@ export default function WorkspaceEditorPage() {
       roomDepth: state.roomDepth,
       wallHeight: state.wallHeight,
       layoutType: state.layoutType,
+      lShapedSide: state.lShapedSide,
+      sideWallWidth: state.sideWallWidth,
       walls: state.walls,
       selectedCatalogId: state.selectedCatalogId,
       goldenRules: state.goldenRules,
       floorToCeiling: state.floorToCeiling,
       useSidePanel200: state.useSidePanel200,
       useHood: state.useHood,
+      useInbuiltStove: state.useInbuiltStove,
+      selectedStoveId: state.selectedStoveId,
       sinkModuleWidth: state.sinkModuleWidth,
       drawerHousingWidth: state.drawerHousingWidth,
       fridgeSide: state.fridgeSide,
@@ -195,6 +208,8 @@ export default function WorkspaceEditorPage() {
           floorToCeiling: state.floorToCeiling,
           useSidePanel200: state.useSidePanel200,
           useHood: state.useHood,
+          useInbuiltStove: state.useInbuiltStove,
+          selectedStoveId: state.selectedStoveId,
           sinkModuleWidth: state.sinkModuleWidth,
           drawerHousingWidth: state.drawerHousingWidth,
           fridgeSide: state.fridgeSide,
@@ -224,12 +239,12 @@ export default function WorkspaceEditorPage() {
   }, [variants, selectedVariantIndex]);
 
   const roomConfig = useMemo(
-    () => ({ roomWidth, roomDepth, wallHeight }),
-    [roomWidth, roomDepth, wallHeight],
+    () => ({ roomWidth, roomDepth, wallHeight, lShapedSide }),
+    [roomWidth, roomDepth, wallHeight, lShapedSide],
   );
 
   const wallAnchors: WallAnchors[] = useMemo(() => {
-    const glbByKind = buildAnchorGlbByKindMap(modules);
+    const glbByKind = buildAnchorGlbByKindMap(modules, useInbuiltStove, selectedStoveId);
 
     // Anchor positions are absolute wall coordinates — no shift needed.
     // Auto-snap in walls-step ensures they don't overlap with fridge/penal zone.
@@ -241,7 +256,7 @@ export default function WorkspaceEditorPage() {
         return glb ? { ...a, glbFile: glb } : a;
       }),
     }));
-  }, [walls, modules]);
+  }, [walls, modules, useInbuiltStove, selectedStoveId]);
 
   const handleSelectCountertop = useCallback(() => {
     setCountertopSelected(true);

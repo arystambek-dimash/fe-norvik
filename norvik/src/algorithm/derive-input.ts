@@ -51,6 +51,12 @@ export interface KitchenStoreState {
 
   /** Fridge placement side: left or right edge of last wall */
   fridgeSide?: 'left' | 'right';
+
+  /** Built-in cooktop (true) or standalone stove (false) */
+  useInbuiltStove?: boolean;
+
+  /** Selected standalone stove cabinet ID (when useInbuiltStove = false) */
+  selectedStoveId?: number | null;
 }
 
 /**
@@ -78,7 +84,7 @@ function deriveCorners(layoutType: LayoutType, walls: WallConfig[]): CornerJunct
  * packages everything the planner needs.
  */
 export function deriveInput(state: KitchenStoreState): PlannerInput {
-  const glbByKind = buildAnchorGlbByKindMap(state.availableCabinets);
+  const glbByKind = buildAnchorGlbByKindMap(state.availableCabinets, state.useInbuiltStove ?? true, state.selectedStoveId);
 
   const walls: WallConfig[] = state.walls.map((wall) => {
     const anchors = (state.anchors[wall.id] ?? []).map((a) => ({
@@ -103,5 +109,7 @@ export function deriveInput(state: KitchenStoreState): PlannerInput {
     sinkModuleWidth: state.sinkModuleWidth ?? 600,
     drawerHousingWidth: state.drawerHousingWidth ?? 400,
     fridgeSide: state.fridgeSide ?? 'right',
+    useInbuiltStove: state.useInbuiltStove ?? true,
+    selectedStoveId: state.selectedStoveId ?? null,
   };
 }

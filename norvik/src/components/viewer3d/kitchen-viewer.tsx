@@ -33,9 +33,13 @@ const PHOTO_CAPTURE_HEIGHT = 1024;
 
 function setEmissive(object: THREE.Object3D, color: THREE.Color): void {
     object.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-            child.material.emissive.copy(color);
-            child.material.emissiveIntensity = color.equals(DEFAULT_EMISSIVE) ? 0 : 0.3;
+        if (!(child instanceof THREE.Mesh)) return;
+
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+            if (!(material instanceof THREE.MeshStandardMaterial)) continue;
+            material.emissive.copy(color);
+            material.emissiveIntensity = color.equals(DEFAULT_EMISSIVE) ? 0 : 0.3;
         }
     });
 }

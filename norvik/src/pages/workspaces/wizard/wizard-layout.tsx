@@ -13,8 +13,8 @@ interface PlannerWizardProps {
 
 const steps = [
   { id: 1, label: "Room Setup" },
-  { id: 2, label: "Walls & Anchors" },
-  { id: 3, label: "Select Catalog" },
+  { id: 2, label: "Select Catalog" },
+  { id: 3, label: "Walls & Anchors" },
 ];
 
 export function PlannerWizard({ onComplete }: PlannerWizardProps) {
@@ -28,6 +28,10 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
           ? null
           : "Room dimensions must be greater than 0",
       2:
+        selectedCatalogId !== null
+          ? null
+          : "Please select a catalog",
+      3:
         walls.length > 0
           ? (() => {
               for (const wall of walls) {
@@ -50,10 +54,6 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
               return null;
             })()
           : "At least one wall is required",
-      3:
-        selectedCatalogId !== null
-          ? null
-          : "Please select a catalog",
     };
     return stepErrors;
   }, [roomWidth, roomDepth, walls, selectedCatalogId]);
@@ -137,8 +137,8 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
       {/* Step content */}
       <div className="rounded-2xl border border-border/60 bg-background p-6 shadow-sm">
         {currentStep === 1 && <RoomStep />}
-        {currentStep === 2 && <WallsStep />}
-        {currentStep === 3 && <CatalogStep />}
+        {currentStep === 2 && <CatalogStep />}
+        {currentStep === 3 && <WallsStep />}
       </div>
 
       {/* Validation message */}

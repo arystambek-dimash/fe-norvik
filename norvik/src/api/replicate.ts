@@ -15,13 +15,12 @@ interface GenerateKitchenPhotoOptions {
 
 export function buildKitchenPhotoPrompt(extraInstructions: string): string {
     return [
-        'Photorealistic interior photograph of a kitchen.',
-        'Keep the exact same cabinet layout, number of cabinets, proportions, countertop shape, appliance positions, and camera angle as the reference image — do not add, remove, or rearrange any element.',
-        'Apply realistic materials: natural wood grain on facades, polished stone or laminate countertop, brushed metal handles, tiled backsplash.',
-        'Soft warm natural light from a window on the left, gentle ambient occlusion shadows under cabinets, subtle reflections on glossy surfaces.',
-        'Clean white or light grey walls, realistic wooden or tiled floor.',
-        'Remove all floating text labels, UI tags, wireframe edges, and any 3D-software artifacts.',
-        'Professional architectural interior photo, shot on a full-frame camera with a 24mm lens, shallow depth of field.',
+        'Создай фотореалистичный рендер этой кухни, не изменяя ничего — все элементы должны остаться на своих местах.',
+        'Сохрани точное расположение шкафов, столешницы, техники и камеру.',
+        'Примени реалистичные материалы: дерево на фасадах, камень или ламинат на столешнице, плитка на фартуке, металлические ручки.',
+        'Мягкий тёплый естественный свет, тени под шкафами, отражения на глянцевых поверхностях.',
+        'Убери все текстовые метки, ярлыки и артефакты 3D-редактора.',
+        'Профессиональная интерьерная фотография.',
         extraInstructions.trim(),
     ]
         .filter(Boolean)

@@ -75,6 +75,9 @@ export const CORNER_CABINET_DEPTH = 600;
 /** How much wall space a corner cabinet occupies on each adjacent wall (mm) */
 export const CORNER_WALL_OCCUPANCY = 600;
 
+/** Side panel width in mm */
+export const SIDE_PANEL_WIDTH = 200;
+
 // ── Scoring constants ───────────────────────────────────────────────────────
 
 /** Minimum aisle clearance between cabinet front and opposite wall (mm) */
@@ -212,11 +215,20 @@ export const ANCHOR_TO_KIND: Record<AnchorType, CabinetKind> = {
  * not full cabinet-module GLBs.
  */
 export function buildAnchorGlbByKindMap(
-  cabinets: { kind: CabinetKind; glb_file: string | null; inbuilt: boolean }[],
+  cabinets: { id: number; kind: CabinetKind; glb_file: string | null; inbuilt: boolean }[],
+  useInbuiltStove: boolean = true,
+  selectedStoveId?: number | null,
 ): Map<CabinetKind, string> {
   const map = new Map<CabinetKind, string>();
   for (const cab of cabinets) {
-    if (cab.inbuilt && cab.glb_file && !map.has(cab.kind)) {
+    if (!cab.glb_file || map.has(cab.kind)) continue;
+    if (cab.kind === CabinetKind.PLATE) {
+      if (!useInbuiltStove && selectedStoveId != null) {
+        if (cab.id === selectedStoveId) map.set(cab.kind, cab.glb_file);
+      } else if (cab.inbuilt === useInbuiltStove) {
+        map.set(cab.kind, cab.glb_file);
+      }
+    } else if (cab.inbuilt) {
       map.set(cab.kind, cab.glb_file);
     }
   }

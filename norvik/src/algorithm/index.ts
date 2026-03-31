@@ -51,6 +51,12 @@ export type {ScoringContext} from './scoring';
 // Planner (orchestrator)
 export {planKitchen, resetModuleCounter} from './planner';
 
+// L-shaped planner
+export { planLShaped } from './l-shaped-planner';
+
+// Planner helpers
+export { solveSegment } from './planner-helpers';
+
 // Derive input
 export {deriveInput} from './derive-input';
 export type {KitchenStoreState} from './derive-input';
