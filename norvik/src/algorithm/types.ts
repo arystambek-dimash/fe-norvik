@@ -95,6 +95,9 @@ export interface PlannerInput {
   useHood: boolean;
   sinkModuleWidth: number;
   drawerHousingWidth: number;
+  fridgeSide: 'left' | 'right';
+  useInbuiltStove: boolean;
+  selectedStoveId: number | null;
 }
 
 export interface ScoringResult {

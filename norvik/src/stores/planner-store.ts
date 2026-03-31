@@ -26,6 +26,8 @@ interface PlannerState {
   roomDepth: number;
   wallHeight: number;
   layoutType: 'linear' | 'l-shaped';
+  lShapedSide: 'left' | 'right';
+  sideWallWidth: number;
   walls: WallConfig[];
 
   // Catalog
@@ -48,11 +50,28 @@ interface PlannerState {
   // Hood above cooktop
   useHood: boolean;
 
+  // Built-in cooktop vs standalone stove
+  useInbuiltStove: boolean;
+
+  // Selected standalone stove cabinet ID (used when useInbuiltStove = false)
+  selectedStoveId: number | null;
+
   // Sink module width (СМ 600 or СМ 800)
   sinkModuleWidth: 600 | 800;
 
   // Drawer unit width (СЯШ 400 or СЯШ 600)
   drawerHousingWidth: 400 | 600;
+
+  // Fridge placement side
+  fridgeSide: 'left' | 'right';
+
+  // Countertop customization
+  countertopColor: string | null;
+  countertopTextureUrl: string | null;
+
+  // Facade (door) customization
+  facadeColor: string | null;
+  facadeTextureUrl: string | null;
 
   // 3D viewer
   selectedModuleId: string | null;
@@ -63,6 +82,8 @@ interface PlannerState {
     roomDepth?: number;
     wallHeight?: number;
     layoutType?: 'linear' | 'l-shaped';
+    lShapedSide?: 'left' | 'right';
+    sideWallWidth?: number;
   }) => void;
   setWalls: (walls: WallConfig[]) => void;
   setSelectedCatalogId: (id: number | null) => void;
@@ -73,8 +94,17 @@ interface PlannerState {
   setFloorToCeiling: (v: boolean) => void;
   setUseSidePanel200: (v: boolean) => void;
   setUseHood: (v: boolean) => void;
+  setUseInbuiltStove: (v: boolean) => void;
+  setSelectedStoveId: (id: number | null) => void;
   setSinkModuleWidth: (v: 600 | 800) => void;
   setDrawerHousingWidth: (v: 400 | 600) => void;
+  setLShapedSide: (v: 'left' | 'right') => void;
+  setSideWallWidth: (v: number) => void;
+  setFridgeSide: (v: 'left' | 'right') => void;
+  setCountertopColor: (color: string | null) => void;
+  setCountertopTextureUrl: (url: string | null) => void;
+  setFacadeColor: (color: string | null) => void;
+  setFacadeTextureUrl: (url: string | null) => void;
   setSelectedModuleId: (id: string | null) => void;
   reset: () => void;
 }
@@ -84,6 +114,8 @@ const initialState = {
   roomDepth: 2500,
   wallHeight: 2700,
   layoutType: 'linear' as const,
+  lShapedSide: 'left' as 'left' | 'right',
+  sideWallWidth: 1800,
   walls: [] as WallConfig[],
   selectedCatalogId: null,
   modules: [] as any[],
@@ -91,8 +123,15 @@ const initialState = {
   floorToCeiling: false,
   useSidePanel200: false,
   useHood: false,
+  useInbuiltStove: true,
+  selectedStoveId: null as number | null,
   sinkModuleWidth: 600 as 600 | 800,
   drawerHousingWidth: 400 as 400 | 600,
+  fridgeSide: 'right' as 'left' | 'right',
+  countertopColor: null as string | null,
+  countertopTextureUrl: null as string | null,
+  facadeColor: null as string | null,
+  facadeTextureUrl: null as string | null,
   variants: [] as any[],
   selectedVariantIndex: 0,
   selectedModuleId: null,
@@ -110,8 +149,17 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setFloorToCeiling: (v) => set({ floorToCeiling: v }),
   setUseSidePanel200: (v) => set({ useSidePanel200: v }),
   setUseHood: (v) => set({ useHood: v }),
+  setUseInbuiltStove: (v) => set({ useInbuiltStove: v }),
+  setSelectedStoveId: (id) => set({ selectedStoveId: id }),
   setSinkModuleWidth: (v) => set({ sinkModuleWidth: v }),
   setDrawerHousingWidth: (v) => set({ drawerHousingWidth: v }),
+  setLShapedSide: (v) => set({ lShapedSide: v }),
+  setSideWallWidth: (v) => set({ sideWallWidth: v }),
+  setFridgeSide: (v) => set({ fridgeSide: v }),
+  setCountertopColor: (color) => set({ countertopColor: color, countertopTextureUrl: null }),
+  setCountertopTextureUrl: (url) => set({ countertopTextureUrl: url, countertopColor: null }),
+  setFacadeColor: (color) => set({ facadeColor: color, facadeTextureUrl: null }),
+  setFacadeTextureUrl: (url) => set({ facadeTextureUrl: url, facadeColor: null }),
   setSelectedModuleId: (id) => set({ selectedModuleId: id }),
   reset: () => set(initialState),
 }));

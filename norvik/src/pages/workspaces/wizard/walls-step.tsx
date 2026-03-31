@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { usePlannerStore } from "@/stores/planner-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2, CookingPot, Droplets, Flame } from "lucide-react";
-import { SINK_COOKTOP_GAP_GRID } from "@/algorithm/constants";
+import { Plus, Trash2, CookingPot, Droplets, Flame, Refrigerator } from "lucide-react";
+import { SINK_COOKTOP_GAP_GRID, MAX_COUNTERTOP, CORNER_WALL_OCCUPANCY } from "@/algorithm/constants";
 import { snapToGrid } from "@/algorithm/segmenter";
+import { CabinetKind } from "@/types/enums";
 
 interface Anchor {
   type: "sink" | "cooktop" | "oven";
@@ -86,15 +88,59 @@ function hasInvalidGap(anchors: Anchor[], index: number, drawerHousingWidth: num
   return false;
 }
 
+function isInFridgeZone(
+  anchor: Anchor,
+  wallLength: number,
+  fridgeSide?: 'left' | 'right',
+  fridgeWidth?: number,
+  penalWidth?: number,
+): boolean {
+  if (!fridgeSide || !fridgeWidth) return false;
+  const totalReserve = fridgeWidth + (penalWidth ?? 0);
+  const anchorEnd = anchor.position + anchor.width;
+
+  if (fridgeSide === 'left') {
+    // Reserved zone: [0, totalReserve]
+    return anchor.position < totalReserve && anchorEnd > 0;
+  } else {
+    // Reserved zone: [wallLength - totalReserve, wallLength]
+    const zoneStart = wallLength - totalReserve;
+    return anchor.position < wallLength && anchorEnd > zoneStart;
+  }
+}
+
+function isInCornerZone(
+  anchor: Anchor,
+  wallLength: number,
+  cornerSide?: 'start' | 'end',
+): boolean {
+  if (!cornerSide) return false;
+  const anchorEnd = anchor.position + anchor.width;
+  if (cornerSide === 'start') {
+    return anchor.position < CORNER_WALL_OCCUPANCY && anchorEnd > 0;
+  } else {
+    const zoneStart = wallLength - CORNER_WALL_OCCUPANCY;
+    return anchor.position < wallLength && anchorEnd > zoneStart;
+  }
+}
+
 function WallDiagram({
   wall,
   drawerHousingWidth,
+  fridgeSide,
+  fridgeWidth,
+  penalWidth,
+  cornerSide,
   onUpdateAnchor,
   onRemoveAnchor,
   onAddAnchor,
 }: {
   wall: WallConfig;
   drawerHousingWidth: number;
+  fridgeSide?: 'left' | 'right';
+  fridgeWidth?: number;
+  penalWidth?: number;
+  cornerSide?: 'start' | 'end';
   onUpdateAnchor: (
     wallId: string,
     anchorIdx: number,
@@ -145,7 +191,9 @@ function WallDiagram({
             const overlap = hasOverlap(wall.anchors, idx);
             const outOfBounds = isOutOfBounds(anchor, wall.length);
             const tooClose = hasInvalidGap(wall.anchors, idx, drawerHousingWidth);
-            const hasError = overlap || outOfBounds || tooClose;
+            const inFridgeZone = isInFridgeZone(anchor, wall.length, fridgeSide, fridgeWidth, penalWidth);
+            const inCornerZone = isInCornerZone(anchor, wall.length, cornerSide);
+            const hasError = overlap || outOfBounds || tooClose || inFridgeZone || inCornerZone;
 
             return (
               <div
@@ -162,6 +210,57 @@ function WallDiagram({
             );
           })}
 
+          {/* Fridge + Penal markers */}
+          {fridgeSide && fridgeWidth && fridgeWidth > 0 && (() => {
+            const pw = penalWidth ?? 0;
+            const totalTall = fridgeWidth + pw;
+            // Right: [fridge][penal]|wall-end — Left: wall-start|[penal][fridge]
+            const fridgeLeft = fridgeSide === 'right'
+              ? barWidth - totalTall * scale
+              : pw * scale;
+            const penalLeft = fridgeSide === 'right'
+              ? barWidth - pw * scale
+              : 0;
+
+            return (
+              <>
+                {/* Fridge */}
+                <div
+                  className="absolute top-0 flex h-10 items-center justify-center rounded bg-emerald-600 text-[10px] font-medium text-white"
+                  style={{ left: fridgeLeft, width: Math.max(8, fridgeWidth * scale) }}
+                  title={`Холодильник: ${fridgeWidth}мм`}
+                >
+                  <Refrigerator className="h-4 w-4" />
+                </div>
+                {/* Penal */}
+                {pw > 0 && (
+                  <div
+                    className="absolute top-0 flex h-10 items-center justify-center rounded bg-amber-600 text-[10px] font-medium text-white"
+                    style={{ left: penalLeft, width: Math.max(8, pw * scale) }}
+                    title={`Пенал: ${pw}мм`}
+                  >
+                    П
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Corner zone marker */}
+          {cornerSide && (() => {
+            const cornerW = Math.max(8, CORNER_WALL_OCCUPANCY * scale);
+            const cornerLeft = cornerSide === 'start' ? 0 : barWidth - cornerW;
+            return (
+              <div
+                className="absolute top-0 flex h-10 items-center justify-center rounded border border-dashed border-violet-400 bg-violet-500/20 text-[10px] font-medium text-violet-700"
+                style={{ left: cornerLeft, width: cornerW }}
+                title={`Угловой модуль (СУ): ${CORNER_WALL_OCCUPANCY}мм`}
+              >
+                СУ
+              </div>
+            );
+          })()}
+
           {/* Scale ticks */}
           <div className="mt-1 flex justify-between">
             <span className="text-[10px] text-muted-foreground">0</span>
@@ -172,6 +271,30 @@ function WallDiagram({
         </div>
       </div>
 
+      {/* Layout breakdown info */}
+      {fridgeSide && fridgeWidth && fridgeWidth > 0 && (
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span>Столешница: <strong className="text-foreground">{wall.length - fridgeWidth - (penalWidth ?? 0)} мм</strong></span>
+          <span className="text-emerald-600">Холодильник: <strong>{fridgeWidth} мм</strong></span>
+          {(penalWidth ?? 0) > 0 && (
+            <span className="text-amber-600">Пенал: <strong>{penalWidth} мм</strong></span>
+          )}
+          {(penalWidth ?? 0) > 0 && (
+            <span className="italic">(пенал добавлен, т.к. стена &gt; {MAX_COUNTERTOP} мм)</span>
+          )}
+        </div>
+      )}
+
+      {/* Corner zone info */}
+      {cornerSide && (
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span className="text-violet-600">
+            Угловой модуль (СУ): <strong>{CORNER_WALL_OCCUPANCY} мм</strong>
+            {cornerSide === 'start' ? ' (начало стены)' : ' (конец стены)'}
+          </span>
+        </div>
+      )}
+
       {/* Anchor detail rows */}
       {wall.anchors.length > 0 && (
         <div className="space-y-3">
@@ -179,6 +302,8 @@ function WallDiagram({
             const overlap = hasOverlap(wall.anchors, idx);
             const outOfBounds = isOutOfBounds(anchor, wall.length);
             const tooClose = hasInvalidGap(wall.anchors, idx, drawerHousingWidth);
+            const inFridgeZone = isInFridgeZone(anchor, wall.length, fridgeSide, fridgeWidth, penalWidth);
+            const inCornerZone = isInCornerZone(anchor, wall.length, cornerSide);
             const AnchorIcon =
               anchorTypes.find((t) => t.type === anchor.type)?.icon ?? Droplets;
 
@@ -187,7 +312,7 @@ function WallDiagram({
                 key={idx}
                 className={cn(
                   "flex flex-wrap items-center gap-3 rounded-lg border p-3",
-                  overlap || outOfBounds || tooClose
+                  overlap || outOfBounds || tooClose || inFridgeZone || inCornerZone
                     ? "border-destructive/50 bg-destructive/5"
                     : getAnchorBorder(anchor.type) + " bg-card"
                 )}
@@ -260,6 +385,16 @@ function WallDiagram({
                     Мин. расстояние между мойкой и варочной — {Math.ceil(drawerHousingWidth / SINK_COOKTOP_GAP_GRID) * SINK_COOKTOP_GAP_GRID} мм (кратно {SINK_COOKTOP_GAP_GRID})
                   </p>
                 )}
+                {inFridgeZone && (
+                  <p className="w-full text-xs text-destructive">
+                    Якорь пересекается с зоной холодильника/пенала — переместите якорь за пределы зоны ({fridgeSide === 'left' ? `0–${(fridgeWidth ?? 0) + (penalWidth ?? 0)}` : `${wall.length - (fridgeWidth ?? 0) - (penalWidth ?? 0)}–${wall.length}`} мм)
+                  </p>
+                )}
+                {inCornerZone && (
+                  <p className="w-full text-xs text-destructive">
+                    Якорь пересекается с угловой зоной (СУ) — переместите якорь за пределы зоны ({cornerSide === 'start' ? `0–${CORNER_WALL_OCCUPANCY}` : `${wall.length - CORNER_WALL_OCCUPANCY}–${wall.length}`} мм)
+                  </p>
+                )}
               </div>
             );
           })}
@@ -275,43 +410,35 @@ function WallDiagram({
   );
 }
 
-function FeatureToggle({ label, description, checked, onChange }: {
+function CompactToggle({ label, checked, onChange }: {
   label: string;
-  description: string;
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4">
-      <div>
-        <Label className="text-sm font-medium">{label}</Label>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
+    <div className="flex items-center justify-between gap-3">
+      <Label className="text-sm">{label}</Label>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   );
 }
 
-function WidthSelector<T extends number>({ label, description, options, value, onChange }: {
+function CompactSelector<T extends number | string>({ label, options, value, onChange }: {
   label: string;
-  description: string;
   options: readonly T[];
   value: T;
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4">
-      <div>
-        <Label className="text-sm font-medium">{label}</Label>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <div className="flex gap-1 rounded-lg border border-border/60 p-0.5">
+    <div className="flex items-center justify-between gap-3">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex gap-0.5 rounded-lg border border-border/60 p-0.5">
         {options.map((w) => (
           <button
             key={w}
             type="button"
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
               value === w
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -327,7 +454,7 @@ function WidthSelector<T extends number>({ label, description, options, value, o
 }
 
 export function WallsStep() {
-  const { roomWidth, roomDepth, layoutType, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth } =
+  const { roomWidth, layoutType, lShapedSide, sideWallWidth, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, useInbuiltStove, setUseInbuiltStove, selectedStoveId, setSelectedStoveId, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth, fridgeSide, setFridgeSide, modules } =
     usePlannerStore();
 
   // Auto-generate walls when room config changes
@@ -336,10 +463,11 @@ export function WallsStep() {
       { id: "Back Wall", length: roomWidth, anchors: [] },
     ];
     if (layoutType === "l-shaped") {
-      result.push({ id: "Left Wall", length: roomDepth, anchors: [] });
+      const sideId = lShapedSide === "left" ? "Left Wall" : "Right Wall";
+      result.push({ id: sideId, length: sideWallWidth, anchors: [] });
     }
     return result;
-  }, [roomWidth, roomDepth, layoutType]);
+  }, [roomWidth, sideWallWidth, layoutType, lShapedSide]);
 
   // Sync generated walls with store, preserving existing anchors
   useEffect(() => {
@@ -362,6 +490,100 @@ export function WallsStep() {
     }
   }, [generatedWalls, setWalls]);
 
+  // Compute fridge/penal reserved zone — wall-aware for L-shaped
+  const fridgeZone = useMemo(() => {
+    const fridgeCab = modules.find((m: any) => m.kind === CabinetKind.FRIDGE);
+    const penalCab = modules.find((m: any) => m.kind === CabinetKind.PENAL);
+    if (!fridgeCab || walls.length === 0) return null;
+
+    let fridgeWall: WallConfig;
+    let localFridgeSide: 'left' | 'right';
+
+    if (layoutType === 'l-shaped' && walls.length >= 2) {
+      // Match algorithm: left → wall1 (back wall) at start, right → wall2 (side wall) at end
+      if (fridgeSide === 'left') {
+        fridgeWall = walls[0];
+        localFridgeSide = 'left';
+      } else {
+        fridgeWall = walls[1];
+        localFridgeSide = 'right';
+      }
+    } else {
+      // Linear: single wall, use fridgeSide as-is
+      fridgeWall = walls[walls.length - 1];
+      localFridgeSide = fridgeSide;
+    }
+
+    const fw = fridgeCab.width;
+    const tallZone = Math.max(0, fridgeWall.length - MAX_COUNTERTOP);
+    const pw = (penalCab && tallZone >= fw + penalCab.width) ? penalCab.width : 0;
+    const total = fw + pw;
+
+    return {
+      wallId: fridgeWall.id,
+      side: localFridgeSide,
+      total,
+      fridgeWidth: fw,
+      penalWidth: pw,
+      start: localFridgeSide === 'left' ? 0 : fridgeWall.length - total,
+      end: localFridgeSide === 'left' ? total : fridgeWall.length,
+    };
+  }, [walls, modules, fridgeSide, layoutType]);
+
+  // Corner zone for L-shaped: wall1.end ↔ wall2.start
+  const cornerZone = useMemo(() => {
+    if (layoutType !== 'l-shaped' || walls.length < 2) return null;
+    return {
+      wall1Id: walls[0].id,
+      wall2Id: walls[1].id,
+      occupancy: CORNER_WALL_OCCUPANCY,
+    };
+  }, [layoutType, walls]);
+
+  /** Snap anchor position out of fridge/penal zone if it overlaps */
+  const snapOutOfFridgeZone = useCallback(
+    (wallId: string, position: number, width: number): number => {
+      if (!fridgeZone || wallId !== fridgeZone.wallId) return position;
+      const anchorEnd = position + width;
+      if (position < fridgeZone.end && anchorEnd > fridgeZone.start) {
+        // Overlaps — snap to the nearest edge
+        const snapped = fridgeZone.side === 'left' ? fridgeZone.end : Math.max(0, fridgeZone.start - width);
+        toast.info(
+          `Якорь сдвинут из зоны холодильника/пенала (${fridgeZone.start}–${fridgeZone.end} мм)`,
+        );
+        return snapToGrid(snapped);
+      }
+      return position;
+    },
+    [fridgeZone],
+  );
+
+  /** Snap anchor position out of corner zone if it overlaps */
+  const snapOutOfCornerZone = useCallback(
+    (wallId: string, position: number, width: number): number => {
+      if (!cornerZone) return position;
+      const anchorEnd = position + width;
+      if (wallId === cornerZone.wall1Id) {
+        // Corner at end of wall1
+        const wall1 = walls.find((w) => w.id === cornerZone.wall1Id);
+        if (!wall1) return position;
+        const zoneStart = wall1.length - cornerZone.occupancy;
+        if (position < wall1.length && anchorEnd > zoneStart) {
+          toast.info(`Якорь сдвинут из угловой зоны (${zoneStart}–${wall1.length} мм)`);
+          return snapToGrid(Math.max(0, zoneStart - width));
+        }
+      } else if (wallId === cornerZone.wall2Id) {
+        // Corner at start of wall2
+        if (position < cornerZone.occupancy && anchorEnd > 0) {
+          toast.info(`Якорь сдвинут из угловой зоны (0–${cornerZone.occupancy} мм)`);
+          return snapToGrid(cornerZone.occupancy);
+        }
+      }
+      return position;
+    },
+    [cornerZone, walls],
+  );
+
   // When sink module width changes, update all existing sink anchor widths
   const handleSinkModuleWidthChange = useCallback(
     (newWidth: 600 | 800) => {
@@ -377,6 +599,79 @@ export function WallsStep() {
     [walls, setWalls, setSinkModuleWidth],
   );
 
+  // List of standalone (non-inbuilt) stoves from catalog
+  const standaloneStoves = useMemo(
+    () => modules.filter((m: any) => m.kind === CabinetKind.PLATE && !m.inbuilt),
+    [modules],
+  );
+
+  // Resolve current stove width for cooktop anchors
+  const currentCooktopWidth = useMemo(() => {
+    if (useInbuiltStove) {
+      const inbuiltPlate = modules.find(
+        (m: any) => m.kind === CabinetKind.PLATE && m.inbuilt,
+      );
+      return inbuiltPlate ? inbuiltPlate.width : 600;
+    }
+    if (selectedStoveId != null) {
+      const stove = standaloneStoves.find((m: any) => m.id === selectedStoveId);
+      if (stove) return stove.width;
+    }
+    return standaloneStoves.length > 0 ? standaloneStoves[0].width : 500;
+  }, [useInbuiltStove, selectedStoveId, standaloneStoves, modules]);
+
+  // When inbuilt stove toggle changes, update all existing cooktop anchor widths
+  const handleInbuiltStoveChange = useCallback(
+    (v: boolean) => {
+      setUseInbuiltStove(v);
+      if (v) {
+        setSelectedStoveId(null);
+        const inbuiltPlate = modules.find(
+          (m: any) => m.kind === CabinetKind.PLATE && m.inbuilt,
+        );
+        const newWidth = inbuiltPlate ? inbuiltPlate.width : 600;
+        const updated = walls.map((w) => ({
+          ...w,
+          anchors: w.anchors.map((a) =>
+            a.type === "cooktop" ? { ...a, width: newWidth } : a,
+          ),
+        }));
+        setWalls(updated);
+      } else {
+        // Auto-select first standalone stove
+        const first = standaloneStoves[0];
+        if (first) {
+          setSelectedStoveId(first.id);
+          const updated = walls.map((w) => ({
+            ...w,
+            anchors: w.anchors.map((a) =>
+              a.type === "cooktop" ? { ...a, width: first.width } : a,
+            ),
+          }));
+          setWalls(updated);
+        }
+      }
+    },
+    [walls, setWalls, setUseInbuiltStove, setSelectedStoveId, modules, standaloneStoves],
+  );
+
+  // When user selects a specific standalone stove
+  const handleStoveSelect = useCallback(
+    (stoveId: number) => {
+      setSelectedStoveId(stoveId);
+      const stove = standaloneStoves.find((m: any) => m.id === stoveId);
+      if (!stove) return;
+      const updated = walls.map((w) => ({
+        ...w,
+        anchors: w.anchors.map((a) =>
+          a.type === "cooktop" ? { ...a, width: stove.width } : a,
+        ),
+      }));
+      setWalls(updated);
+    },
+    [walls, setWalls, setSelectedStoveId, standaloneStoves],
+  );
+
   const handleAddAnchor = useCallback(
     (wallId: string, type: Anchor["type"]) => {
       const updated = walls.map((w) => {
@@ -386,8 +681,9 @@ export function WallsStep() {
           (max, a) => Math.max(max, a.position + a.width),
           0
         );
-        const snappedPosition = snapToGrid(lastEnd);
-        const width = type === "sink" ? sinkModuleWidth : 600;
+        const width = type === "sink" ? sinkModuleWidth : type === "cooktop" ? currentCooktopWidth : 600;
+        let snappedPosition = snapOutOfFridgeZone(wallId, snapToGrid(lastEnd), width);
+        snappedPosition = snapOutOfCornerZone(wallId, snappedPosition, width);
         return {
           ...w,
           anchors: [
@@ -398,7 +694,7 @@ export function WallsStep() {
       });
       setWalls(updated);
     },
-    [walls, setWalls, sinkModuleWidth]
+    [walls, setWalls, sinkModuleWidth, currentCooktopWidth, snapOutOfFridgeZone, snapOutOfCornerZone]
   );
 
   const handleUpdateAnchor = useCallback(
@@ -407,14 +703,21 @@ export function WallsStep() {
         if (w.id !== wallId) return w;
         return {
           ...w,
-          anchors: w.anchors.map((a, i) =>
-            i === anchorIdx ? { ...a, ...updates } : a
-          ),
+          anchors: w.anchors.map((a, i) => {
+            if (i !== anchorIdx) return a;
+            const merged = { ...a, ...updates };
+            // Auto-snap position out of fridge/penal and corner zones
+            if (updates.position !== undefined) {
+              merged.position = snapOutOfFridgeZone(wallId, merged.position, merged.width);
+              merged.position = snapOutOfCornerZone(wallId, merged.position, merged.width);
+            }
+            return merged;
+          }),
         };
       });
       setWalls(updated);
     },
-    [walls, setWalls]
+    [walls, setWalls, snapOutOfFridgeZone, snapOutOfCornerZone]
   );
 
   const handleRemoveAnchor = useCallback(
@@ -432,7 +735,7 @@ export function WallsStep() {
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h2 className="font-display text-lg font-semibold">
           Walls & Anchors
@@ -442,52 +745,84 @@ export function WallsStep() {
         </p>
       </div>
 
-      <div className="space-y-3">
-        <FeatureToggle
-          label="До потолка"
-          description="Добавить антресоли до потолка над высокими модулями"
-          checked={floorToCeiling}
-          onChange={setFloorToCeiling}
-        />
-        <FeatureToggle
-          label="СБ 200"
-          description="Ставить СБ 200 рядом с посудомойкой и варочной поверхностью"
-          checked={useSidePanel200}
-          onChange={setUseSidePanel200}
-        />
-        <FeatureToggle
-          label="Вытяжка"
-          description="Оставить место для вытяжки над варочной поверхностью"
-          checked={useHood}
-          onChange={setUseHood}
-        />
-        <WidthSelector
-          label="СМ (мойка)"
-          description="Ширина модуля под мойку"
-          options={[600, 800] as const}
-          value={sinkModuleWidth}
-          onChange={handleSinkModuleWidthChange}
-        />
-        <WidthSelector
-          label="СЯШ (выдвижной ящик)"
-          description="Ширина модуля выдвижного ящика"
-          options={[400, 600] as const}
-          value={drawerHousingWidth}
-          onChange={setDrawerHousingWidth}
-        />
+      {/* Compact settings grid */}
+      <div className="rounded-xl border border-border/60 p-4">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+          <CompactToggle label="До потолка" checked={floorToCeiling} onChange={setFloorToCeiling} />
+          <CompactToggle label="СБ 200" checked={useSidePanel200} onChange={setUseSidePanel200} />
+          <CompactToggle label="Вытяжка" checked={useHood} onChange={setUseHood} />
+          <CompactToggle label="Встроенная плита" checked={useInbuiltStove} onChange={handleInbuiltStoveChange} />
+          <CompactSelector label="Мойка" options={[600, 800] as const} value={sinkModuleWidth} onChange={handleSinkModuleWidthChange} />
+          <CompactSelector label="СЯШ" options={[400, 600] as const} value={drawerHousingWidth} onChange={setDrawerHousingWidth} />
+          <CompactSelector
+            label="Холодильник"
+            options={['Слева', 'Справа'] as const}
+            value={fridgeSide === 'left' ? 'Слева' : 'Справа'}
+            onChange={(v) => setFridgeSide(v === 'Слева' ? 'left' : 'right')}
+          />
+        </div>
+
+        {/* Standalone stove selection */}
+        {!useInbuiltStove && standaloneStoves.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-border/40">
+            <Label className="text-xs text-muted-foreground mb-2 block">Выберите плиту</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {standaloneStoves.map((stove: any) => (
+                <button
+                  key={stove.id}
+                  type="button"
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                    selectedStoveId === stove.id
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                  )}
+                  onClick={() => handleStoveSelect(stove.id)}
+                >
+                  {stove.article} — {stove.width}мм
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!useInbuiltStove && modules.length > 0 && standaloneStoves.length === 0 && (
+          <p className="mt-3 pt-3 border-t border-border/40 text-xs text-muted-foreground">
+            Нет отдельностоящих плит в каталоге
+          </p>
+        )}
       </div>
 
       <div className="space-y-6">
-        {walls.map((wall) => (
-          <WallDiagram
-            key={wall.id}
-            wall={wall}
-            drawerHousingWidth={drawerHousingWidth}
-            onUpdateAnchor={handleUpdateAnchor}
-            onRemoveAnchor={handleRemoveAnchor}
-            onAddAnchor={handleAddAnchor}
-          />
-        ))}
+        {walls.map((wall) => {
+          // Determine if this wall has the fridge
+          const hasFridge = fridgeZone && wall.id === fridgeZone.wallId;
+          const wallFridgeSide = hasFridge ? fridgeZone.side : undefined;
+          const wallFridgeWidth = hasFridge ? fridgeZone.fridgeWidth : undefined;
+          const wallPenalWidth = hasFridge ? fridgeZone.penalWidth : 0;
+
+          // Determine corner side for this wall
+          let wallCornerSide: 'start' | 'end' | undefined;
+          if (cornerZone) {
+            if (wall.id === cornerZone.wall1Id) wallCornerSide = 'end';
+            else if (wall.id === cornerZone.wall2Id) wallCornerSide = 'start';
+          }
+
+          return (
+            <WallDiagram
+              key={wall.id}
+              wall={wall}
+              drawerHousingWidth={drawerHousingWidth}
+              fridgeSide={wallFridgeSide}
+              fridgeWidth={wallFridgeWidth}
+              penalWidth={wallPenalWidth}
+              cornerSide={wallCornerSide}
+              onUpdateAnchor={handleUpdateAnchor}
+              onRemoveAnchor={handleRemoveAnchor}
+              onAddAnchor={handleAddAnchor}
+            />
+          );
+        })}
       </div>
     </div>
   );

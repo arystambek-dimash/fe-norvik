@@ -14,7 +14,7 @@ import { disposeScene } from "@/components/viewer3d/dispose";
 import { proxyGlbUrl, gltfLoader, enableShadows } from "@/components/viewer3d/three-utils";
 import { createLowerCabinet, createUpperCabinet, createCornerCabinet, createTallCabinet } from "@/components/viewer3d/procedural-models";
 import type { CabinetRead } from "@/types/entities";
-import { CabinetType } from "@/types/enums";
+import { CabinetKind, CabinetSubtype, CabinetType } from "@/types/enums";
 import { capitalize } from "@/lib/utils";
 import { Box, Ruler, DollarSign, Layers, Tag, Cuboid } from "lucide-react";
 
@@ -30,10 +30,21 @@ interface ModelViewerProps {
   height: number;
   depth: number;
   cabinetType: CabinetType;
+  cabinetKind: CabinetKind;
+  cabinetSubtype: CabinetSubtype;
   isCorner: boolean;
 }
 
-function ModelViewer({ glbUrl, width, height, depth, cabinetType, isCorner }: ModelViewerProps) {
+function ModelViewer({
+  glbUrl,
+  width,
+  height,
+  depth,
+  cabinetType,
+  cabinetKind,
+  cabinetSubtype,
+  isCorner,
+}: ModelViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const rafRef = useRef<number>(0);
@@ -154,7 +165,12 @@ function ModelViewer({ glbUrl, width, height, depth, cabinetType, isCorner }: Mo
             model = createTallCabinet(width, depth, height);
             break;
           default:
-            model = createLowerCabinet(width, depth, height);
+            model = createLowerCabinet(width, depth, height, {
+              includeCountertop: !(
+                cabinetKind === CabinetKind.SINK &&
+                cabinetSubtype === CabinetSubtype.SINK_BASE
+              ),
+            });
             break;
         }
       }
@@ -189,7 +205,7 @@ function ModelViewer({ glbUrl, width, height, depth, cabinetType, isCorner }: Mo
       }
       rendererRef.current = null;
     };
-  }, [glbUrl, width, height, depth, cabinetType, isCorner]);
+  }, [glbUrl, width, height, depth, cabinetType, cabinetKind, cabinetSubtype, isCorner]);
 
   return (
     <div
@@ -240,6 +256,8 @@ export function ModelPreviewDialog({
               height={cabinet.height}
               depth={cabinet.depth}
               cabinetType={cabinet.type}
+              cabinetKind={cabinet.kind}
+              cabinetSubtype={cabinet.subtype}
               isCorner={cabinet.is_corner}
             />
 

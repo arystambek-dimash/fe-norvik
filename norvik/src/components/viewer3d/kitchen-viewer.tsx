@@ -1,4 +1,4 @@
-import {useRef, useEffect, useCallback} from 'react';
+import {forwardRef, useRef, useEffect, useCallback, useImperativeHandle} from 'react';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import type {KitchenPlan} from '@/algorithm/types';
@@ -6,23 +6,40 @@ import {EMPTY_SCORE_BREAKDOWN} from '@/algorithm/scoring';
 import {buildScene, type RoomConfig, type WallAnchors} from './scene-builder';
 import {disposeScene} from './dispose';
 import {clearTextureCache} from './texture-factory';
+import {countertopMaterial, facadeMaterial} from './procedural-models';
 
 interface KitchenViewerProps {
     plan: KitchenPlan | null;
     roomConfig: RoomConfig;
     wallAnchors?: WallAnchors[];
     selectedModuleId: string | null;
+    fridgeSide?: 'left' | 'right';
     onSelectModule: (id: string | null) => void;
+    onSelectCountertop?: () => void;
+    countertopColor?: string | null;
+    countertopTextureUrl?: string | null;
+    facadeColor?: string | null;
+    facadeTextureUrl?: string | null;
+}
+
+export interface KitchenViewerHandle {
+    captureReferenceImage: () => Promise<string>;
 }
 
 const HIGHLIGHT_EMISSIVE = new THREE.Color(0x4488ff);
 const DEFAULT_EMISSIVE = new THREE.Color(0x000000);
+const PHOTO_CAPTURE_WIDTH = 1280;
+const PHOTO_CAPTURE_HEIGHT = 1024;
 
 function setEmissive(object: THREE.Object3D, color: THREE.Color): void {
     object.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-            child.material.emissive.copy(color);
-            child.material.emissiveIntensity = color.equals(DEFAULT_EMISSIVE) ? 0 : 0.3;
+        if (!(child instanceof THREE.Mesh)) return;
+
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+            if (!(material instanceof THREE.MeshStandardMaterial)) continue;
+            material.emissive.copy(color);
+            material.emissiveIntensity = color.equals(DEFAULT_EMISSIVE) ? 0 : 0.3;
         }
     });
 }
@@ -36,13 +53,81 @@ function findModuleGroup(object: THREE.Object3D): THREE.Object3D | null {
     return null;
 }
 
-export function KitchenViewer({
-                                  plan,
-                                  roomConfig,
-                                  wallAnchors,
-                                  selectedModuleId,
-                                  onSelectModule,
-                              }: KitchenViewerProps) {
+function findCountertopMesh(object: THREE.Object3D): boolean {
+    let current: THREE.Object3D | null = object;
+    while (current) {
+        if (current.userData?.isCountertop) return true;
+        current = current.parent;
+    }
+    return false;
+}
+
+function isSceneAnnotation(object: THREE.Object3D): boolean {
+    return Boolean(object.userData?.isSceneLabel) || object.name.startsWith('label-');
+}
+
+function getCaptureView(roomConfig: RoomConfig, fridgeSide: 'left' | 'right' = 'right') {
+    const rw = roomConfig.roomWidth / 1000;
+    const rd = roomConfig.roomDepth / 1000;
+    const wallHeight = roomConfig.wallHeight / 1000;
+
+    // Service capture should read like a straight-on catalog shot,
+    // not the interactive 3/4 overview used in the main viewer.
+    const compositionBias = fridgeSide === 'right' ? 0.06 : -0.06;
+    const axisX = THREE.MathUtils.clamp(rw * (0.5 + compositionBias), rw * 0.42, rw * 0.58);
+
+    const cameraY = Math.max(1.42, wallHeight * 0.5);
+    const cameraZ = Math.max(rd * 1.7, rw * 1.15, 3.6);
+
+    const targetY = Math.max(1.0, wallHeight * 0.39);
+    const targetZ = rd * 0.12;
+
+    return {
+        position: new THREE.Vector3(axisX, cameraY, cameraZ),
+        target: new THREE.Vector3(axisX, targetY, targetZ),
+    };
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Failed to capture viewer image.'));
+                return;
+            }
+            resolve(blob);
+        }, type, quality);
+    });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (typeof reader.result !== 'string') {
+                reject(new Error('Failed to read captured image.'));
+                return;
+            }
+            resolve(reader.result);
+        };
+        reader.onerror = () => reject(new Error('Failed to read captured image.'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+export const KitchenViewer = forwardRef<KitchenViewerHandle, KitchenViewerProps>(function KitchenViewer({
+    plan,
+    roomConfig,
+    wallAnchors,
+    selectedModuleId,
+    fridgeSide = 'right',
+    onSelectModule,
+    onSelectCountertop,
+    countertopColor,
+    countertopTextureUrl,
+    facadeColor,
+    facadeTextureUrl,
+}, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -69,6 +154,12 @@ export function KitchenViewer({
             const intersects = raycasterRef.current.intersectObjects(scene.children, true);
 
             if (intersects.length > 0) {
+                // Check if countertop was clicked
+                if (findCountertopMesh(intersects[0].object)) {
+                    onSelectModule(null);
+                    onSelectCountertop?.();
+                    return;
+                }
                 const moduleGroup = findModuleGroup(intersects[0].object);
                 if (moduleGroup) {
                     onSelectModule(moduleGroup.userData.moduleId as string);
@@ -78,7 +169,7 @@ export function KitchenViewer({
 
             onSelectModule(null);
         },
-        [onSelectModule],
+        [onSelectModule, onSelectCountertop],
     );
 
     // Keep ref in sync so the stable listener always calls the latest handler
@@ -94,6 +185,7 @@ export function KitchenViewer({
             antialias: true,
             alpha: false,
             powerPreference: 'high-performance',
+            preserveDrawingBuffer: true,
         });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
@@ -228,6 +320,125 @@ export function KitchenViewer({
         });
     }, [selectedModuleId]);
 
+    // Apply countertop color/texture via the shared material
+    useEffect(() => {
+        if (countertopTextureUrl) {
+            new THREE.TextureLoader().load(countertopTextureUrl, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(2, 2);
+                countertopMaterial.map = texture;
+                countertopMaterial.color.setHex(0xffffff);
+                countertopMaterial.needsUpdate = true;
+            });
+        } else if (countertopColor) {
+            countertopMaterial.map = null;
+            countertopMaterial.color.set(countertopColor);
+            countertopMaterial.needsUpdate = true;
+        } else {
+            countertopMaterial.map = null;
+            countertopMaterial.color.setHex(0x3A3A3A);
+            countertopMaterial.needsUpdate = true;
+        }
+    }, [countertopColor, countertopTextureUrl]);
+
+    // Apply facade (door) color/texture via the shared material
+    useEffect(() => {
+        if (facadeTextureUrl) {
+            new THREE.TextureLoader().load(facadeTextureUrl, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(2, 2);
+                facadeMaterial.map = texture;
+                facadeMaterial.color.setHex(0xffffff);
+                facadeMaterial.needsUpdate = true;
+            });
+        } else if (facadeColor) {
+            facadeMaterial.map = null;
+            facadeMaterial.color.set(facadeColor);
+            facadeMaterial.needsUpdate = true;
+        } else {
+            facadeMaterial.map = null;
+            facadeMaterial.color.setHex(0xD4B48E);
+            facadeMaterial.needsUpdate = true;
+        }
+    }, [facadeColor, facadeTextureUrl]);
+
+    const captureReferenceImage = useCallback(async () => {
+        const container = containerRef.current;
+        const renderer = rendererRef.current;
+        const camera = cameraRef.current;
+        const controls = controlsRef.current;
+        const scene = sceneRef.current;
+        if (!container || !renderer || !camera || !controls || !scene) {
+            throw new Error('3D viewer is not ready yet.');
+        }
+
+        const previousPosition = camera.position.clone();
+        const previousTarget = controls.target.clone();
+        const previousControlsEnabled = controls.enabled;
+        const previousPixelRatio = renderer.getPixelRatio();
+        const annotationVisibility: Array<{ object: THREE.Object3D; visible: boolean }> = [];
+
+        scene.traverse((object) => {
+            if (isSceneAnnotation(object)) {
+                annotationVisibility.push({object, visible: object.visible});
+                object.visible = false;
+            }
+
+            if (object.userData?.moduleId) {
+                setEmissive(object, DEFAULT_EMISSIVE);
+            }
+        });
+
+        const captureView = getCaptureView(roomConfig, fridgeSide);
+        const renderWidth = container.clientWidth;
+        const renderHeight = container.clientHeight;
+
+        controls.enabled = false;
+        camera.aspect = PHOTO_CAPTURE_WIDTH / PHOTO_CAPTURE_HEIGHT;
+        camera.updateProjectionMatrix();
+        camera.position.copy(captureView.position);
+        controls.target.copy(captureView.target);
+        controls.update();
+
+        renderer.setPixelRatio(1);
+        renderer.setSize(PHOTO_CAPTURE_WIDTH, PHOTO_CAPTURE_HEIGHT, false);
+        renderer.render(scene, camera);
+
+        try {
+            const blob = await canvasToBlob(renderer.domElement, 'image/jpeg', 0.95);
+            return await blobToDataUrl(blob);
+        } finally {
+            camera.aspect = renderWidth / Math.max(renderHeight, 1);
+            camera.updateProjectionMatrix();
+            camera.position.copy(previousPosition);
+            controls.target.copy(previousTarget);
+            controls.enabled = previousControlsEnabled;
+            controls.update();
+
+            renderer.setPixelRatio(previousPixelRatio);
+            renderer.setSize(renderWidth, renderHeight, false);
+
+            for (const {object, visible} of annotationVisibility) {
+                object.visible = visible;
+            }
+
+            scene.traverse((object) => {
+                if (object.userData?.moduleId) {
+                    const isSelected = object.userData.moduleId === selectedModuleId;
+                    setEmissive(object, isSelected ? HIGHLIGHT_EMISSIVE : DEFAULT_EMISSIVE);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+    }, [fridgeSide, roomConfig, selectedModuleId]);
+
+    useImperativeHandle(ref, () => ({
+        captureReferenceImage,
+    }), [captureReferenceImage]);
+
     return (
         <div
             ref={containerRef}
@@ -235,6 +446,8 @@ export function KitchenViewer({
             style={{minHeight: 300}}
         />
     );
-}
+});
+
+KitchenViewer.displayName = 'KitchenViewer';
 
 export default KitchenViewer;

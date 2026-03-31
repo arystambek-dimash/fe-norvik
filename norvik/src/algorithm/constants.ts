@@ -31,6 +31,9 @@ export const MIN_LOWER_FILLER = 50;
 export const MAX_LOWER_FILLER = 300;
 export const FILLER_STEP = 10;
 
+/** Maximum countertop (lower modules) length in mm */
+export const MAX_COUNTERTOP = 3000;
+
 /** Module width grid alignment in mm */
 export const MODULE_GRID = 50;
 
@@ -71,6 +74,9 @@ export const CORNER_CABINET_DEPTH = 600;
 
 /** How much wall space a corner cabinet occupies on each adjacent wall (mm) */
 export const CORNER_WALL_OCCUPANCY = 600;
+
+/** Side panel width in mm */
+export const SIDE_PANEL_WIDTH = 200;
 
 // ── Scoring constants ───────────────────────────────────────────────────────
 
@@ -203,13 +209,26 @@ export const ANCHOR_TO_KIND: Record<AnchorType, CabinetKind> = {
   oven: CabinetKind.APPLIANCE_HOUSING,
 };
 
-/** Find the first GLB URL per cabinet kind from a list of cabinets */
-export function buildGlbByKindMap(
-  cabinets: { kind: CabinetKind; glb_file: string | null }[],
+/**
+ * Find the first appliance GLB URL per cabinet kind.
+ * Anchors (sink/cooktop/oven) should only use dedicated inbuilt appliance models,
+ * not full cabinet-module GLBs.
+ */
+export function buildAnchorGlbByKindMap(
+  cabinets: { id: number; kind: CabinetKind; glb_file: string | null; inbuilt: boolean }[],
+  useInbuiltStove: boolean = true,
+  selectedStoveId?: number | null,
 ): Map<CabinetKind, string> {
   const map = new Map<CabinetKind, string>();
   for (const cab of cabinets) {
-    if (cab.glb_file && !map.has(cab.kind)) {
+    if (!cab.glb_file || map.has(cab.kind)) continue;
+    if (cab.kind === CabinetKind.PLATE) {
+      if (!useInbuiltStove && selectedStoveId != null) {
+        if (cab.id === selectedStoveId) map.set(cab.kind, cab.glb_file);
+      } else if (cab.inbuilt === useInbuiltStove) {
+        map.set(cab.kind, cab.glb_file);
+      }
+    } else if (cab.inbuilt) {
       map.set(cab.kind, cab.glb_file);
     }
   }

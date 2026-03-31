@@ -79,13 +79,17 @@ const layoutOptions = [
 ];
 
 export function RoomStep() {
-  const { roomWidth, roomDepth, wallHeight, layoutType, setRoomConfig } =
+  const { roomWidth, roomDepth, wallHeight, layoutType, lShapedSide, sideWallWidth, setRoomConfig, setLShapedSide, setSideWallWidth } =
     usePlannerStore();
 
   const maxPreview = 180;
-  const scale = maxPreview / Math.max(roomWidth, roomDepth);
+  const allDims = layoutType === "l-shaped"
+    ? [roomWidth, roomDepth, sideWallWidth]
+    : [roomWidth, roomDepth];
+  const scale = maxPreview / Math.max(...allDims);
   const previewW = Math.round(roomWidth * scale);
   const previewD = Math.round(roomDepth * scale);
+  const previewSideW = Math.round(sideWallWidth * scale);
 
   return (
     <div className="space-y-6">
@@ -162,6 +166,40 @@ export function RoomStep() {
               );
             })}
           </div>
+
+          {/* L-Shaped options */}
+          {layoutType === "l-shaped" && (
+            <div className="space-y-3 mt-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Side Wall Direction
+                </Label>
+                <div className="flex gap-2">
+                  {(["left", "right"] as const).map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      onClick={() => setLShapedSide(side)}
+                      className={cn(
+                        "flex-1 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-all",
+                        lShapedSide === side
+                          ? "border-primary bg-primary/5"
+                          : "border-border/60 hover:border-primary/30",
+                      )}
+                    >
+                      {side === "left" ? "Left" : "Right"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <NumberStepper
+                label="Side Wall Width"
+                value={sideWallWidth}
+                onChange={setSideWallWidth}
+                min={500}
+              />
+            </div>
+          )}
         </div>
 
         {/* Room Preview */}
@@ -183,23 +221,66 @@ export function RoomStep() {
                 </span>
               </div>
 
-              {/* Depth label — right */}
-              <div
-                className="absolute top-0 flex items-center"
-                style={{ left: previewW + 8, height: previewD }}
-              >
-                <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
-                  {roomDepth} mm
-                </span>
-              </div>
+              {/* Depth label — right side for linear & l-shaped left, left side for l-shaped right */}
+              {layoutType === "l-shaped" && lShapedSide === "right" ? (
+                <div
+                  className="absolute top-0 flex items-center"
+                  style={{ right: previewW + 8, height: previewD }}
+                >
+                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+                    {roomDepth} mm
+                  </span>
+                </div>
+              ) : (
+                <div
+                  className="absolute top-0 flex items-center"
+                  style={{ left: previewW + 8, height: previewD }}
+                >
+                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+                    {roomDepth} mm
+                  </span>
+                </div>
+              )}
 
               {/* Wall indicators */}
               {layoutType === "linear" ? (
                 <div className="absolute -bottom-1 left-0 h-1.5 w-full rounded-full bg-primary" />
               ) : (
                 <>
+                  {/* Back wall — always at bottom */}
                   <div className="absolute -bottom-1 left-0 h-1.5 w-full rounded-full bg-primary" />
-                  <div className="absolute -left-1 top-0 h-full w-1.5 rounded-full bg-primary" />
+                  {/* Side wall — proportional to sideWallWidth, anchored to bottom */}
+                  {lShapedSide === "left" ? (
+                    <div
+                      className="absolute -left-1 w-1.5 rounded-full bg-primary"
+                      style={{ bottom: 0, height: previewSideW }}
+                    />
+                  ) : (
+                    <div
+                      className="absolute -right-1 w-1.5 rounded-full bg-primary"
+                      style={{ bottom: 0, height: previewSideW }}
+                    />
+                  )}
+                  {/* Side wall width label */}
+                  {lShapedSide === "left" ? (
+                    <div
+                      className="absolute flex items-center"
+                      style={{ right: previewW + 8, bottom: 0, height: previewSideW }}
+                    >
+                      <span className="text-[11px] font-medium text-primary whitespace-nowrap">
+                        {sideWallWidth} mm
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className="absolute flex items-center"
+                      style={{ left: previewW + 8, bottom: 0, height: previewSideW }}
+                    >
+                      <span className="text-[11px] font-medium text-primary whitespace-nowrap">
+                        {sideWallWidth} mm
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

@@ -33,14 +33,23 @@ export interface SerializablePlannerState {
   roomDepth: number;
   wallHeight: number;
   layoutType: 'linear' | 'l-shaped';
+  lShapedSide: 'left' | 'right';
+  sideWallWidth: number;
   walls: WallConfig[];
   selectedCatalogId: number | null;
   goldenRules: GoldenRule[];
   floorToCeiling: boolean;
   useSidePanel200: boolean;
   useHood: boolean;
+  useInbuiltStove: boolean;
+  selectedStoveId: number | null;
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
+  fridgeSide: 'left' | 'right';
+  countertopColor: string | null;
+  countertopTextureUrl: string | null;
+  facadeColor: string | null;
+  facadeTextureUrl: string | null;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -53,14 +62,23 @@ interface SerializedWorkspaceContent {
   roomDepth: number;
   wallHeight: number;
   layoutType: string;
+  lShapedSide: 'left' | 'right';
+  sideWallWidth: number;
   walls: WallConfig[];
   selectedCatalogId: number | null;
   goldenRules: GoldenRule[];
   floorToCeiling: boolean;
   useSidePanel200: boolean;
   useHood: boolean;
+  useInbuiltStove: boolean;
+  selectedStoveId: number | null;
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
+  fridgeSide: 'left' | 'right';
+  countertopColor: string | null;
+  countertopTextureUrl: string | null;
+  facadeColor: string | null;
+  facadeTextureUrl: string | null;
   variants: unknown[];
   selectedVariantIndex: number;
 }
@@ -73,14 +91,23 @@ const DEFAULTS: SerializablePlannerState = {
   roomDepth: 2500,
   wallHeight: 2700,
   layoutType: 'linear',
+  lShapedSide: 'left',
+  sideWallWidth: 1800,
   walls: [],
   selectedCatalogId: null,
   goldenRules: [],
   floorToCeiling: false,
   useSidePanel200: false,
   useHood: false,
+  useInbuiltStove: true,
+  selectedStoveId: null,
   sinkModuleWidth: 600,
   drawerHousingWidth: 400,
+  fridgeSide: 'right',
+  countertopColor: null,
+  countertopTextureUrl: null,
+  facadeColor: null,
+  facadeTextureUrl: null,
   variants: [],
   selectedVariantIndex: 0,
 };
@@ -104,14 +131,23 @@ export function serializeState(
     roomDepth: state.roomDepth,
     wallHeight: state.wallHeight,
     layoutType: state.layoutType,
+    lShapedSide: state.lShapedSide,
+    sideWallWidth: state.sideWallWidth,
     walls: state.walls,
     selectedCatalogId: state.selectedCatalogId,
     goldenRules: state.goldenRules,
     floorToCeiling: state.floorToCeiling,
     useSidePanel200: state.useSidePanel200,
     useHood: state.useHood,
+    useInbuiltStove: state.useInbuiltStove,
+    selectedStoveId: state.selectedStoveId,
     sinkModuleWidth: state.sinkModuleWidth,
     drawerHousingWidth: state.drawerHousingWidth,
+    fridgeSide: state.fridgeSide,
+    countertopColor: state.countertopColor,
+    countertopTextureUrl: state.countertopTextureUrl,
+    facadeColor: state.facadeColor,
+    facadeTextureUrl: state.facadeTextureUrl,
     variants: state.variants,
     selectedVariantIndex: state.selectedVariantIndex,
   };
@@ -223,6 +259,17 @@ export function deserializeState(
     ? content.layoutType
     : DEFAULTS.layoutType;
 
+  // L-shaped side
+  result.lShapedSide =
+    content.lShapedSide === 'left' || content.lShapedSide === 'right'
+      ? content.lShapedSide
+      : DEFAULTS.lShapedSide;
+
+  // Side wall width
+  result.sideWallWidth = isNumber(content.sideWallWidth)
+    ? content.sideWallWidth
+    : DEFAULTS.sideWallWidth;
+
   // Walls
   if (Array.isArray(content.walls)) {
     const walls: WallConfig[] = [];
@@ -262,6 +309,14 @@ export function deserializeState(
   // Hood above cooktop
   result.useHood = content.useHood === true;
 
+  // Built-in stove (default true for backwards compat)
+  result.useInbuiltStove = content.useInbuiltStove !== false;
+
+  // Selected standalone stove ID
+  result.selectedStoveId = isNumber(content.selectedStoveId)
+    ? content.selectedStoveId
+    : DEFAULTS.selectedStoveId;
+
   // Sink module width
   result.sinkModuleWidth =
     content.sinkModuleWidth === 600 || content.sinkModuleWidth === 800
@@ -273,6 +328,28 @@ export function deserializeState(
     content.drawerHousingWidth === 400 || content.drawerHousingWidth === 600
       ? content.drawerHousingWidth
       : DEFAULTS.drawerHousingWidth;
+
+  // Fridge side
+  result.fridgeSide =
+    content.fridgeSide === 'left' || content.fridgeSide === 'right'
+      ? content.fridgeSide
+      : DEFAULTS.fridgeSide;
+
+  // Countertop customization
+  result.countertopColor = typeof content.countertopColor === 'string'
+    ? content.countertopColor
+    : DEFAULTS.countertopColor;
+  result.countertopTextureUrl = typeof content.countertopTextureUrl === 'string'
+    ? content.countertopTextureUrl
+    : DEFAULTS.countertopTextureUrl;
+
+  // Facade customization
+  result.facadeColor = typeof content.facadeColor === 'string'
+    ? content.facadeColor
+    : DEFAULTS.facadeColor;
+  result.facadeTextureUrl = typeof content.facadeTextureUrl === 'string'
+    ? content.facadeTextureUrl
+    : DEFAULTS.facadeTextureUrl;
 
   // Variants (opaque data — accept arrays as-is)
   result.variants = Array.isArray(content.variants)

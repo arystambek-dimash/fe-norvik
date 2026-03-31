@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 import type { KitchenPlan, PlacedModule, Anchor } from '@/algorithm/types';
+import { CabinetKind, CabinetSubtype } from '@/types/enums';
 import {
+  countertopMaterial,
+  facadeMaterial,
   createLowerCabinet,
+  createLowerCountertop,
   createUpperCabinet,
   createCornerCabinet,
+  createCornerCountertop,
   createTallCabinet,
   createFillerPanel,
-  createPlinth,
-  createSink,
-  createCooktop,
   mm,
 } from './procedural-models';
 import {
@@ -16,7 +18,7 @@ import {
   createWallTexture,
   createTileTexture,
 } from './texture-factory';
-import { UPPER_HEIGHT, UPPER_DEPTH, UPPER_Y, COUNTERTOP_TOP as COUNTERTOP_TOP_MM, WALL_THICKNESS, BASEBOARD_HEIGHT, BACKSPLASH_HEIGHT } from '@/algorithm/constants';
+import { UPPER_HEIGHT, UPPER_DEPTH, UPPER_Y, WALL_THICKNESS, BASEBOARD_HEIGHT, BACKSPLASH_HEIGHT } from '@/algorithm/constants';
 import { gltfLoader, proxyGlbUrl, enableShadows } from './three-utils';
 import { disposeObject } from './dispose';
 
@@ -29,6 +31,7 @@ export interface RoomConfig {
   roomWidth: number;  // mm
   roomDepth: number;  // mm
   wallHeight: number; // mm
+  lShapedSide?: 'left' | 'right';
 }
 // ── Room geometry ───────────────────────────────────────────
 function createFloor(roomWidth: number, roomDepth: number): THREE.Mesh {
@@ -165,9 +168,15 @@ function createLabelTexture(text: string, bgColor = 'rgba(0,0,0,0.7)', fgColor =
 /** Create a billboard sprite label positioned at (x, y, z). */
 function createLabel(text: string, x: number, y: number, z: number, bgColor?: string, fgColor?: string): THREE.Sprite {
   const texture = createLabelTexture(text, bgColor, fgColor);
-  const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+  const mat = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+  });
   const sprite = new THREE.Sprite(mat);
   sprite.name = `label-${text}`;
+  sprite.userData.isSceneLabel = true;
 
   // Scale sprite proportional to canvas aspect ratio
   const aspect = texture.image.width / texture.image.height;
@@ -182,6 +191,245 @@ function createLabel(text: string, x: number, y: number, z: number, bgColor?: st
 /**
  * Create the 3D object for a module based on its type.
  */
+function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
+  if (mod.type === 'corner') return true;
+  if (mod.type !== 'lower') return false;
+
+  return !(
+    mod.kind === CabinetKind.PLATE ||
+    mod.kind === CabinetKind.SINK &&
+    mod.subtype === CabinetSubtype.SINK_BASE
+  );
+}
+
+function canReuseGlbCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
+  return mod.type === 'corner' || mod.kind === CabinetKind.DOOR || mod.kind === CabinetKind.DRAWER_UNIT;
+}
+
+function shouldApplyFacade(mod: Pick<PlacedModule, 'type' | 'kind'>): boolean {
+  if (mod.type === 'filler') return false;
+  return (
+    mod.kind !== CabinetKind.FRIDGE &&
+    mod.kind !== CabinetKind.PLATE
+  );
+}
+
+function canReuseGlbFacade(mod: Pick<PlacedModule, 'kind'>): boolean {
+  return mod.kind !== CabinetKind.FRIDGE && mod.kind !== CabinetKind.PLATE;
+}
+
+function isGlbCountertopCandidate(
+  meshBox: THREE.Box3,
+  modelBox: THREE.Box3,
+): boolean {
+  const modelSize = modelBox.getSize(new THREE.Vector3());
+  const meshSize = meshBox.getSize(new THREE.Vector3());
+
+  if (modelSize.x <= 1e-6 || modelSize.y <= 1e-6 || modelSize.z <= 1e-6) return false;
+  if (meshSize.y <= 1e-6) return false;
+
+  const distanceFromTop = modelBox.max.y - meshBox.max.y;
+  const widthRatio = meshSize.x / modelSize.x;
+  const depthRatio = meshSize.z / modelSize.z;
+  const footprintRatio = (meshSize.x * meshSize.z) / (modelSize.x * modelSize.z);
+
+  return (
+    distanceFromTop <= 0.05 &&
+    meshSize.y <= 0.08 &&
+    meshSize.x > meshSize.y * 3 &&
+    meshSize.z > meshSize.y * 3 &&
+    widthRatio >= 0.45 &&
+    depthRatio >= 0.45 &&
+    footprintRatio >= 0.2
+  );
+}
+
+function applySharedCountertopToGlb(model: THREE.Object3D): number {
+  const modelBox = new THREE.Box3().setFromObject(model);
+  let matched = 0;
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+
+    const meshBox = new THREE.Box3().setFromObject(child);
+    if (!isGlbCountertopCandidate(meshBox, modelBox)) return;
+    child.material = countertopMaterial;
+    child.userData.isCountertop = true;
+    matched += 1;
+  });
+
+  return matched;
+}
+
+function removeGlbCountertop(model: THREE.Object3D): number {
+  const modelBox = new THREE.Box3().setFromObject(model);
+  const matches: THREE.Mesh[] = [];
+
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+
+    const meshBox = new THREE.Box3().setFromObject(child);
+    if (!isGlbCountertopCandidate(meshBox, modelBox)) return;
+    matches.push(child);
+  });
+
+  for (const mesh of matches) {
+    mesh.visible = false;
+    mesh.userData.isCountertop = true;
+  }
+
+  return matches.length;
+}
+
+function isGlbFacadeCandidateMesh(meshBox: THREE.Box3, modelBox: THREE.Box3): boolean {
+  const modelSize = modelBox.getSize(new THREE.Vector3());
+  const meshSize = meshBox.getSize(new THREE.Vector3());
+
+  if (modelSize.x <= 1e-6 || modelSize.y <= 1e-6 || modelSize.z <= 1e-6) return false;
+  if (meshSize.x <= 1e-6 || meshSize.y <= 1e-6 || meshSize.z <= 1e-6) return false;
+
+  const widthRatio = meshSize.x / modelSize.x;
+  const heightRatio = meshSize.y / modelSize.y;
+  const distanceFromFront = meshBox.min.z - modelBox.min.z;
+
+  return (
+    widthRatio >= 0.18 &&
+    heightRatio >= 0.18 &&
+    distanceFromFront <= modelSize.z * 0.25
+  );
+}
+
+function buildTriangleMaterialIndices(
+  geometry: THREE.BufferGeometry,
+  triangleCount: number,
+): number[] {
+  const triangleMaterialIndices = new Array<number>(triangleCount).fill(0);
+
+  if (geometry.groups.length === 0) return triangleMaterialIndices;
+
+  for (const group of geometry.groups) {
+    const startTriangle = Math.floor(group.start / 3);
+    const endTriangle = Math.min(
+      triangleCount,
+      Math.ceil((group.start + group.count) / 3),
+    );
+
+    for (let triangleIndex = startTriangle; triangleIndex < endTriangle; triangleIndex += 1) {
+      triangleMaterialIndices[triangleIndex] = group.materialIndex ?? 0;
+    }
+  }
+
+  return triangleMaterialIndices;
+}
+
+function assignFacadeToFrontFaces(
+  mesh: THREE.Mesh,
+  modelBox: THREE.Box3,
+  facadeMaterialIndex: number,
+): boolean {
+  const sourceGeometry = mesh.geometry;
+  const preparedGeometry = sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone();
+  const position = preparedGeometry.getAttribute('position');
+  if (!position || position.count < 3) return false;
+
+  if (!preparedGeometry.getAttribute('normal')) {
+    preparedGeometry.computeVertexNormals();
+  }
+
+  const normal = preparedGeometry.getAttribute('normal');
+  if (!normal || normal.count < 3) return false;
+
+  const triangleCount = position.count / 3;
+  const triangleMaterialIndices = buildTriangleMaterialIndices(preparedGeometry, triangleCount);
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+  const modelSize = modelBox.getSize(new THREE.Vector3());
+  const frontThreshold = Math.max(modelSize.z * 0.12, 0.012);
+
+  const v1 = new THREE.Vector3();
+  const v2 = new THREE.Vector3();
+  const v3 = new THREE.Vector3();
+  const n1 = new THREE.Vector3();
+  const n2 = new THREE.Vector3();
+  const n3 = new THREE.Vector3();
+  let hasFacadeFaces = false;
+
+  for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
+    const vertexOffset = triangleIndex * 3;
+
+    v1.fromBufferAttribute(position, vertexOffset).applyMatrix4(mesh.matrixWorld);
+    v2.fromBufferAttribute(position, vertexOffset + 1).applyMatrix4(mesh.matrixWorld);
+    v3.fromBufferAttribute(position, vertexOffset + 2).applyMatrix4(mesh.matrixWorld);
+
+    n1.fromBufferAttribute(normal, vertexOffset).applyMatrix3(normalMatrix);
+    n2.fromBufferAttribute(normal, vertexOffset + 1).applyMatrix3(normalMatrix);
+    n3.fromBufferAttribute(normal, vertexOffset + 2).applyMatrix3(normalMatrix);
+
+    const triangleMinZ = Math.min(v1.z, v2.z, v3.z);
+    const averageNormalZ = n1.add(n2).add(n3).normalize().z;
+    const isFrontFace =
+      triangleMinZ - modelBox.min.z <= frontThreshold &&
+      averageNormalZ <= -0.35;
+
+    if (isFrontFace) {
+      triangleMaterialIndices[triangleIndex] = facadeMaterialIndex;
+      hasFacadeFaces = true;
+    }
+  }
+
+  if (!hasFacadeFaces) {
+    preparedGeometry.dispose();
+    return false;
+  }
+
+  preparedGeometry.clearGroups();
+  let currentMaterialIndex = triangleMaterialIndices[0];
+  let currentStart = 0;
+
+  for (let triangleIndex = 1; triangleIndex < triangleCount; triangleIndex += 1) {
+    const nextMaterialIndex = triangleMaterialIndices[triangleIndex];
+    if (nextMaterialIndex === currentMaterialIndex) continue;
+
+    preparedGeometry.addGroup(currentStart * 3, (triangleIndex - currentStart) * 3, currentMaterialIndex);
+    currentMaterialIndex = nextMaterialIndex;
+    currentStart = triangleIndex;
+  }
+
+  preparedGeometry.addGroup(currentStart * 3, (triangleCount - currentStart) * 3, currentMaterialIndex);
+  mesh.geometry = preparedGeometry;
+  return true;
+}
+
+/**
+ * Apply shared facade material to the front-facing faces of existing GLB geometry.
+ * This avoids adding overlay meshes on top of the model.
+ */
+function applySharedFacadeToGlb(model: THREE.Object3D): number {
+  const modelBox = new THREE.Box3().setFromObject(model);
+  const modelSize = modelBox.getSize(new THREE.Vector3());
+
+  if (modelSize.x <= 1e-6 || modelSize.y <= 1e-6 || modelSize.z <= 1e-6) return 0;
+
+  model.updateMatrixWorld(true);
+  let matched = 0;
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    if (child.userData.isCountertop) return; // skip countertop meshes
+
+    const meshBox = new THREE.Box3().setFromObject(child);
+    if (!isGlbFacadeCandidateMesh(meshBox, modelBox)) return;
+
+    const baseMaterials = Array.isArray(child.material) ? child.material : [child.material];
+    const facadeMaterialIndex = baseMaterials.length;
+    const updated = assignFacadeToFrontFaces(child, modelBox, facadeMaterialIndex);
+    if (!updated) return;
+
+    child.material = [...baseMaterials, facadeMaterial];
+    child.userData.isFacade = true;
+    matched += 1;
+  });
+
+  return matched;
+}
+
 function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Mesh; depth: number } {
   const isUpper = mod.type === 'upper' || mod.type === 'antresol';
   const depth = mod.depth || (isUpper ? UPPER_DEPTH : 560);
@@ -199,7 +447,9 @@ function createModuleObject(mod: PlacedModule): { object: THREE.Group | THREE.Me
   } else if (isUpper) {
     group = createUpperCabinet(mod.width, depth, mod.height || UPPER_HEIGHT);
   } else {
-    group = createLowerCabinet(mod.width, depth, mod.height);
+    group = createLowerCabinet(mod.width, depth, mod.height, {
+      includeCountertop: shouldIncludeCountertop(mod),
+    });
   }
 
   group.userData = { moduleId: mod.id, type: mod.type };
@@ -214,6 +464,27 @@ function getModuleY(mod: PlacedModule): number {
   if (mod.yOffset != null) return mm(mod.yOffset);
   if (mod.type === 'upper') return mm(UPPER_Y);
   return 0;
+}
+
+function isOverheadModule(mod: Pick<PlacedModule, 'type'>): boolean {
+  return mod.type === 'upper' || mod.type === 'antresol';
+}
+
+function getModuleLabelY(mod: PlacedModule): number {
+  const labelPad = isOverheadModule(mod) ? 0.14 : 0.05;
+  return getModuleY(mod) + mm(mod.height) + labelPad;
+}
+
+function getModuleLabelDepth(mod: PlacedModule): number {
+  const depthMm = mod.depth || (isOverheadModule(mod) ? UPPER_DEPTH : 560);
+
+  // Upper labels need to sit in front of the cabinet, otherwise the current
+  // camera angle makes them look like they dropped into the box volume.
+  if (isOverheadModule(mod)) {
+    return mm(depthMm + 110);
+  }
+
+  return mm(depthMm / 2);
 }
 
 function placeBackWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
@@ -243,6 +514,23 @@ function placeLeftWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
   }
 
   object.rotation.y = -Math.PI / 2;
+  return object;
+}
+
+/**
+ * Place a module on the right wall (along Z axis, rotated +90°).
+ */
+function placeRightWallModule(mod: PlacedModule, roomWidthMm: number): THREE.Group | THREE.Mesh {
+  const zPos = mm(mod.x + mod.width / 2);
+  const { object, depth } = createModuleObject(mod);
+
+  if (mod.type === 'filler') {
+    object.position.set(mm(roomWidthMm), 0, zPos);
+  } else {
+    object.position.set(mm(roomWidthMm) - mm(depth) / 2, getModuleY(mod), zPos);
+  }
+
+  object.rotation.y = Math.PI / 2;
   return object;
 }
 
@@ -353,7 +641,8 @@ function loadAndScaleGlb(
 async function loadGlbModule(
   mod: PlacedModule,
   scene: THREE.Scene,
-  wall: 'back' | 'left' | 'corner',
+  wall: 'back' | 'left' | 'right' | 'corner',
+  roomWidthMm?: number,
 ): Promise<void> {
   if (!mod.glbFile) return;
 
@@ -361,23 +650,52 @@ async function loadGlbModule(
   if (!result) return;
 
   removeSceneObjectByName(scene, `glb-${mod.id}`);
-
+  removeSceneObjectByName(scene, `placeholder-${mod.id}`);
   const wrapper = new THREE.Group();
   wrapper.name = `glb-${mod.id}`;
   wrapper.userData = { moduleId: mod.id, type: mod.type, wall, glbFile: mod.glbFile };
+
+  // Only lower cabinet GLBs may contain a removable countertop slab.
+  // Upper/tall modules also have thin top panels, and the countertop heuristic
+  // was mistakenly hiding those panels, leaving the cabinet "open" from above.
+  if (mod.type === 'lower' && !shouldIncludeCountertop(mod)) {
+    removeGlbCountertop(result.model);
+  }
+  const glbCountertopMatches = shouldIncludeCountertop(mod) && canReuseGlbCountertop(mod)
+    ? applySharedCountertopToGlb(result.model)
+    : 0;
+  if (shouldApplyFacade(mod) && canReuseGlbFacade(mod)) {
+    applySharedFacadeToGlb(result.model);
+  }
   wrapper.add(result.model);
+  if (mod.type === 'lower' && mod.kind !== "plate" && shouldIncludeCountertop(mod) && glbCountertopMatches === 0) {
+    wrapper.add(createLowerCountertop(mod.width, mod.depth, mod.height));
+  } else if (mod.type === 'corner' && glbCountertopMatches === 0) {
+    wrapper.add(createCornerCountertop(mod.width, mod.depth, mod.height));
+  }
 
   const y = getModuleY(mod);
 
   if (wall === 'corner') {
-    wrapper.position.set(0, y, 0);
+    const rwm = roomWidthMm ?? 0;
+    // If mod.rotation is set (right-side corner), position at room width
+    if (mod.rotation && mod.rotation !== 0) {
+      wrapper.position.set(mm(rwm), y, 0);
+      wrapper.rotation.y = mod.rotation;
+    } else {
+      wrapper.position.set(0, y, 0);
+    }
   } else if (wall === 'left') {
     wrapper.position.set(result.scaledSize.z / 2, y, mm(mod.x + mod.width / 2));
     wrapper.rotation.y = -Math.PI / 2;
+  } else if (wall === 'right') {
+    const rwMm = roomWidthMm ?? 0;
+    wrapper.position.set(mm(rwMm) - result.scaledSize.z / 2, y, mm(mod.x + mod.width / 2));
+    wrapper.rotation.y = Math.PI / 2;
   } else {
     wrapper.position.set(mm(mod.x + mod.width / 2), y, result.scaledSize.z / 2);
+    wrapper.rotation.y = Math.PI;
   }
-  wrapper.rotation.y = Math.PI;
   scene.add(wrapper);
 }
 
@@ -498,11 +816,13 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
   );
 
   // ── Determine which walls go where ──
-  // Convention: walls[0] = back wall (along X), walls[1] = left wall (along Z) for L-shaped
+  // walls[0] = back wall (along X), walls[1] = side wall (along Z)
   const isLShaped = plan.walls.length >= 2;
+  const sideWallSide = roomConfig.lShapedSide ?? 'left';
+  const isRightSide = sideWallSide === 'right';
 
   // Collect all placed modules with their wall context for GLB loading
-  const glbCandidates: { mod: PlacedModule; wall: 'back' | 'left' | 'corner' }[] = [];
+  const glbCandidates: { mod: PlacedModule; wall: 'back' | 'left' | 'right' | 'corner' }[] = [];
 
   // ── Place cabinets ──
 
@@ -511,21 +831,29 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
   for (let wi = 0; wi < plan.walls.length; wi++) {
     const wallPlan = plan.walls[wi];
-    const isLeftWall = isLShaped && wi === 1;
+    const isSideWall = isLShaped && wi === 1;
 
     for (const mod of wallPlan.modules) {
       if (mod.glbFile) {
-        glbCandidates.push({ mod, wall: isLeftWall ? 'left' : 'back' });
+        glbCandidates.push({ mod, wall: isSideWall ? (isRightSide ? 'right' : 'left') : 'back' });
       } else {
-        scene.add(isLeftWall ? placeLeftWallModule(mod) : placeBackWallModule(mod));
+        if (isSideWall) {
+          scene.add(isRightSide
+            ? placeRightWallModule(mod, roomWidth)
+            : placeLeftWallModule(mod));
+        } else {
+          scene.add(placeBackWallModule(mod));
+        }
       }
 
       // Add article label above every module
       if (mod.article) {
-        const labelY = mm(mod.yOffset ?? (mod.type === 'upper' ? UPPER_Y : 0)) + mm(mod.height) + LABEL_PAD;
-        const depthZ = mm((mod.depth || (mod.type === 'upper' || mod.type === 'antresol' ? UPPER_DEPTH : 560)) / 2);
-        if (isLeftWall) {
+        const labelY = getModuleLabelY(mod);
+        const depthZ = getModuleLabelDepth(mod);
+        if (isSideWall && !isRightSide) {
           scene.add(createLabel(mod.article, depthZ, labelY, mm(mod.x + mod.width / 2)));
+        } else if (isSideWall && isRightSide) {
+          scene.add(createLabel(mod.article, mm(roomWidth) - depthZ, labelY, mm(mod.x + mod.width / 2)));
         } else {
           scene.add(createLabel(mod.article, mm(mod.x + mod.width / 2), labelY, depthZ));
         }
@@ -538,7 +866,10 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
   if (plan.cornerModules && plan.cornerModules.length > 0) {
     for (const cornerMod of plan.cornerModules) {
       if (cornerMod.glbFile) {
-        glbCandidates.push({ mod: cornerMod, wall: 'corner' });
+        const glbCornerMod = isRightSide
+          ? { ...cornerMod, rotation: -Math.PI / 2 }
+          : cornerMod;
+        glbCandidates.push({ mod: glbCornerMod, wall: 'corner' });
       } else {
         const cornerGroup = createCornerCabinet(
           cornerMod.width,
@@ -546,7 +877,12 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
           cornerMod.height,
         );
 
-        cornerGroup.position.set(0, 0, 0);
+        if (isRightSide) {
+          cornerGroup.position.set(rw, 0, 0);
+          cornerGroup.rotation.y = -Math.PI / 2;
+        } else {
+          cornerGroup.position.set(0, 0, 0);
+        }
         cornerGroup.userData = { moduleId: cornerMod.id, type: 'corner' };
         scene.add(cornerGroup);
       }
@@ -554,59 +890,43 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
       // Corner label
       if (cornerMod.article) {
         const labelY = mm(cornerMod.height) + LABEL_PAD;
-        scene.add(createLabel(cornerMod.article, mm(cornerMod.width / 2), labelY, mm(cornerMod.depth / 2)));
+        if (isRightSide) {
+          scene.add(createLabel(cornerMod.article, rw - mm(cornerMod.width / 2), labelY, mm(cornerMod.depth / 2)));
+        } else {
+          scene.add(createLabel(cornerMod.article, mm(cornerMod.width / 2), labelY, mm(cornerMod.depth / 2)));
+        }
       }
     }
   }
 
-  // Left wall backsplash for L-shaped layouts
+  // Side wall backsplash for L-shaped layouts
   if (isLShaped) {
-    scene.add(
-      createBacksplash(
-        roomDepth,
-        new THREE.Vector3(mm(2), backsplashY, rd / 2),
-        new THREE.Euler(0, Math.PI / 2, 0),
-      ),
-    );
-  }
-
-  // Plinth strip — back wall modules
-  const backWallLowers = plan.walls[0]?.modules.filter(
-    (m) => m.type === 'lower' || m.type === 'tall',
-  ) ?? [];
-  if (backWallLowers.length > 0) {
-    const minX = Math.min(...backWallLowers.map((m) => m.x));
-    const maxX = Math.max(...backWallLowers.map((m) => m.x + m.width));
-    const totalWidth = maxX - minX;
-    const plinth = createPlinth(totalWidth);
-    plinth.position.x = mm(minX + totalWidth / 2);
-    plinth.position.z = mm(280);
-    scene.add(plinth);
-  }
-
-  // Plinth strip — left wall modules (if L-shaped)
-  if (isLShaped && plan.walls[1]) {
-    const leftWallLowers = plan.walls[1].modules.filter(
-      (m) => m.type === 'lower' || m.type === 'tall',
-    );
-    if (leftWallLowers.length > 0) {
-      const minZ = Math.min(...leftWallLowers.map((m) => m.x));
-      const maxZ = Math.max(...leftWallLowers.map((m) => m.x + m.width));
-      const totalWidth = maxZ - minZ;
-      const plinth = createPlinth(totalWidth);
-      plinth.rotation.y = -Math.PI / 2;
-      plinth.position.set(mm(280), 0, mm(minZ + totalWidth / 2));
-      scene.add(plinth);
+    if (isRightSide) {
+      scene.add(
+        createBacksplash(
+          roomDepth,
+          new THREE.Vector3(rw - mm(2), backsplashY, rd / 2),
+          new THREE.Euler(0, -Math.PI / 2, 0),
+        ),
+      );
+    } else {
+      scene.add(
+        createBacksplash(
+          roomDepth,
+          new THREE.Vector3(mm(2), backsplashY, rd / 2),
+          new THREE.Euler(0, Math.PI / 2, 0),
+        ),
+      );
     }
   }
 
-  // ── Place appliances (sink, cooktop) on countertop at anchor positions ──
-  // Anchors with glbFile get async-loaded; procedural models serve as placeholders.
+  // Plinth strip removed — fridge/penal and lower cabinets share the same floor level
+
+  // ── Anchor appliance GLBs (sink, cooktop) ──
+  // Cabinet bodies are placed by the algorithm (СМ / ПМ). Queue anchor GLBs if available.
   const applianceGlbQueue: { anchor: Anchor; name: string; wall: 'back' | 'left' }[] = [];
 
   if (wallAnchors && wallAnchors.length > 0) {
-    const ctTop = mm(COUNTERTOP_TOP_MM);
-    const CT_DEPTH_Z = mm(280);
     for (let wi = 0; wi < wallAnchors.length; wi++) {
       const wa = wallAnchors[wi];
       const isLeftWall = isLShaped && wi === 1;
@@ -614,40 +934,9 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
       for (const anchor of wa.anchors) {
         const applianceName = `appliance-${anchor.type}-${wi}`;
 
-        // Procedural placeholder
-        let appliance: THREE.Group | null = null;
-        if (anchor.type === 'sink') {
-          appliance = createSink(anchor.width);
-        } else if (anchor.type === 'cooktop') {
-          appliance = createCooktop(anchor.width);
-        }
-
-        if (!appliance) continue;
-
-        if (isLeftWall) {
-          const zPos = mm(anchor.position + anchor.width / 2);
-          appliance.position.set(CT_DEPTH_Z, ctTop, zPos);
-          appliance.rotation.y = -Math.PI / 2;
-        } else {
-          const xPos = mm(anchor.position + anchor.width / 2);
-          appliance.position.set(xPos, ctTop, CT_DEPTH_Z);
-        }
-
-        appliance.name = applianceName;
-        scene.add(appliance);
-
-        // Anchor type label above appliance
-        const anchorLabel = anchor.type.charAt(0).toUpperCase() + anchor.type.slice(1);
-        const anchorLabelY = ctTop + mm(60);
-        if (isLeftWall) {
-          const zPos = mm(anchor.position + anchor.width / 2);
-          scene.add(createLabel(anchorLabel, CT_DEPTH_Z, anchorLabelY, zPos, 'rgba(30,100,200,0.8)'));
-        } else {
-          const xPos = mm(anchor.position + anchor.width / 2);
-          scene.add(createLabel(anchorLabel, xPos, anchorLabelY, CT_DEPTH_Z, 'rgba(30,100,200,0.8)'));
-        }
-
-        // Queue GLB replacement if catalog model available
+        // Sink & cooktop are now placed as real cabinets (СМ / ПМ) by the
+        // algorithm, so we skip procedural appliance placeholders entirely.
+        // Only queue GLB replacement if the anchor has a catalog model.
         if (anchor.glbFile) {
           applianceGlbQueue.push({
             anchor,
@@ -665,7 +954,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
   // Async GLB loader — replaces procedural placeholders with real models
   const loadGlbModels = async (): Promise<void> => {
     const cabinetPromises = glbCandidates.map(({ mod, wall }) =>
-      loadGlbModule(mod, scene, wall),
+      loadGlbModule(mod, scene, wall, roomWidth),
     );
 
     // Load appliance GLBs from catalog, replacing procedural placeholders
