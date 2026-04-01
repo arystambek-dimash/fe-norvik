@@ -1,15 +1,15 @@
-FROM node:20
+FROM node:22-alpine AS builder
 
-WORKDIR /fe-norvik
+WORKDIR /app
 
-COPY norvik/package.json norvik/package-lock.json ./
-
+COPY package*.json ./
 RUN npm ci
 
-COPY norvik/ .
-
+COPY . .
 RUN npm run build
 
-EXPOSE 3000
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-CMD ["npm", "start"]
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
