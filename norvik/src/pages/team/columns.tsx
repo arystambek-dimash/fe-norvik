@@ -15,15 +15,15 @@ export function getTeamColumns({ onRemove }: TeamColumnActions): ColumnDef<Compa
       header: "ID",
       cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span>,
     },
-    { accessorKey: "first_name", header: "First Name" },
-    { accessorKey: "last_name", header: "Last Name" },
-    { accessorKey: "email", header: "Email" },
+    { accessorKey: "first_name", header: "Имя" },
+    { accessorKey: "last_name", header: "Фамилия" },
+    { accessorKey: "email", header: "Электронная почта" },
     {
       accessorKey: "is_manager",
-      header: "Role",
+      header: "Роль",
       cell: ({ row }) => (
         <Badge variant={row.original.is_manager ? "default" : "secondary"}>
-          {row.original.is_manager ? "Manager" : "Employee"}
+          {row.original.is_manager ? "Менеджер" : "Сотрудник"}
         </Badge>
       ),
     },
@@ -32,7 +32,7 @@ export function getTeamColumns({ onRemove }: TeamColumnActions): ColumnDef<Compa
           createActionsColumn<CompanyUserRead>({
             extraActions: [
               {
-                label: "Remove",
+                label: "Удалить",
                 icon: <Trash2 className="mr-2 h-4 w-4" />,
                 onClick: onRemove,
                 className: "text-destructive",

@@ -25,10 +25,10 @@ import { getTeamColumns } from "./columns";
 import type { CompanyUserRead } from "@/types/entities";
 
 const createEmployeeSchema = z.object({
-  first_name: z.string().min(1, "Required"),
-  last_name: z.string().min(1, "Required"),
-  email: z.string().email("Invalid email"),
-  password: z.string().min(6, "Min 6 characters"),
+  first_name: z.string().min(1, "Обязательное поле"),
+  last_name: z.string().min(1, "Обязательное поле"),
+  email: z.string().email("Неверный email"),
+  password: z.string().min(6, "Минимум 6 символов"),
 });
 
 type CreateEmployeeForm = z.infer<typeof createEmployeeSchema>;
@@ -60,11 +60,11 @@ export default function TeamPage() {
   const inviteMutation = useMutation({
     mutationFn: () => companiesApi.inviteUser(currentCompanyId!, inviteEmail),
     onSuccess: () => {
-      toast.success("Invitation sent");
+      toast.success("Приглашение отправлено");
       setInviteOpen(false);
       setInviteEmail("");
     },
-    onError: () => toast.error("Failed to send invitation"),
+    onError: () => toast.error("Не удалось отправить приглашение"),
   });
 
   const createMutation = useMutation({
@@ -72,21 +72,21 @@ export default function TeamPage() {
       companiesApi.createEmployee(currentCompanyId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-users"] });
-      toast.success("Employee created");
+      toast.success("Сотрудник создан");
       setCreateOpen(false);
       createForm.reset();
     },
-    onError: () => toast.error("Failed to create employee"),
+    onError: () => toast.error("Не удалось создать сотрудника"),
   });
 
   const removeMutation = useMutation({
     mutationFn: (userId: number) => companiesApi.removeUser(currentCompanyId!, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-users"] });
-      toast.success("User removed");
+      toast.success("Пользователь удалён");
       setRemoveUser(null);
     },
-    onError: () => toast.error("Failed to remove user"),
+    onError: () => toast.error("Не удалось удалить пользователя"),
   });
 
   const columns = useMemo(
@@ -98,30 +98,30 @@ export default function TeamPage() {
   );
 
   if (!currentCompanyId) {
-    return <div className="p-8 text-muted-foreground">No company selected</div>;
+    return <div className="p-8 text-muted-foreground">Компания не выбрана</div>;
   }
 
   return (
     <div className="space-y-8 animate-fade-up">
       <PageHeader
-        title="Team"
-        description="Manage your company's team members"
+        title="Команда"
+        description="Управление сотрудниками вашей компании"
         action={
           isManager ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="rounded-lg">
-                  <Plus className="mr-2 h-4 w-4" /> Add Member
+                  <Plus className="mr-2 h-4 w-4" /> Добавить участника
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setCreateOpen(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
-                  Create Employee
+                  Создать сотрудника
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setInviteOpen(true)}>
                   <Mail className="mr-2 h-4 w-4" />
-                  Invite Existing User
+                  Пригласить существующего пользователя
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -148,29 +148,29 @@ export default function TeamPage() {
           setCreateOpen(open);
           if (!open) createForm.reset();
         }}
-        title="Create Employee"
-        description="Create a new employee account for your company"
+        title="Создать сотрудника"
+        description="Создать новый аккаунт сотрудника для вашей компании"
         onSubmit={createForm.handleSubmit((data) => createMutation.mutate(data))}
         isLoading={createMutation.isPending}
-        submitLabel="Create"
+        submitLabel="Создать"
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label>Имя</Label>
               <Input {...createForm.register("first_name")} />
             </div>
             <div className="space-y-2">
-              <Label>Last Name</Label>
+              <Label>Фамилия</Label>
               <Input {...createForm.register("last_name")} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Электронная почта</Label>
             <Input type="email" {...createForm.register("email")} />
           </div>
           <div className="space-y-2">
-            <Label>Password</Label>
+            <Label>Пароль</Label>
             <Input type="password" {...createForm.register("password")} />
           </div>
         </div>
@@ -180,17 +180,17 @@ export default function TeamPage() {
       <CrudDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
-        title="Invite Existing User"
-        description="Send an invitation to a user who already has an account"
+        title="Пригласить существующего пользователя"
+        description="Отправить приглашение пользователю, у которого уже есть аккаунт"
         onSubmit={(e) => {
           e.preventDefault();
           inviteMutation.mutate();
         }}
         isLoading={inviteMutation.isPending}
-        submitLabel="Send Invite"
+        submitLabel="Отправить приглашение"
       >
         <div className="space-y-2">
-          <Label htmlFor="invite-email">Email Address</Label>
+          <Label htmlFor="invite-email">Адрес электронной почты</Label>
           <Input
             id="invite-email"
             type="email"
@@ -206,8 +206,8 @@ export default function TeamPage() {
         open={removeUser !== null}
         onOpenChange={() => setRemoveUser(null)}
         onConfirm={() => removeUser && removeMutation.mutate(removeUser.id)}
-        title={`Remove ${removeUser?.first_name} ${removeUser?.last_name}?`}
-        description="This user will be removed from the company."
+        title={`Удалить ${removeUser?.first_name} ${removeUser?.last_name}?`}
+        description="Этот пользователь будет удалён из компании."
         isLoading={removeMutation.isPending}
       />
     </div>
