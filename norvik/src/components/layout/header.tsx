@@ -8,7 +8,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-8 backdrop-blur-md">
       <div className="text-sm font-medium tracking-wide text-muted-foreground/60">
-        Kitchen Cabinet Configurator
+        Конфигуратор кухонных шкафов
       </div>
       <div className="flex items-center gap-5">
         <div className="flex items-center gap-3">
@@ -25,7 +25,7 @@ export function Header() {
         <div className="h-6 w-px bg-border" />
         <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">
           <LogOut className="h-4 w-4" />
-          <span className="ml-1.5">Logout</span>
+          <span className="ml-1.5">Выйти</span>
         </Button>
       </div>
     </header>
