@@ -23,9 +23,9 @@ interface WallConfig {
 }
 
 const anchorTypes = [
-  { type: "sink" as const, label: "Sink", icon: Droplets },
-  { type: "cooktop" as const, label: "Cooktop", icon: Flame },
-  { type: "oven" as const, label: "Oven", icon: CookingPot },
+  { type: "sink" as const, label: "Мойка", icon: Droplets },
+  { type: "cooktop" as const, label: "Варочная панель", icon: Flame },
+  { type: "oven" as const, label: "Духовой шкаф", icon: CookingPot },
 ];
 
 function getAnchorColor(type: Anchor["type"]) {
@@ -112,7 +112,7 @@ function WallDiagram({
         <div>
           <h3 className="font-medium">{wall.id}</h3>
           <p className="text-sm text-muted-foreground">
-            Length: {wall.length} mm
+            Длина: {wall.length} мм
           </p>
         </div>
         <div className="flex gap-2">
@@ -166,7 +166,7 @@ function WallDiagram({
           <div className="mt-1 flex justify-between">
             <span className="text-[10px] text-muted-foreground">0</span>
             <span className="text-[10px] text-muted-foreground">
-              {wall.length} mm
+              {wall.length} мм
             </span>
           </div>
         </div>
@@ -194,14 +194,14 @@ function WallDiagram({
               >
                 <div className="flex items-center gap-2 min-w-[100px]">
                   <AnchorIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium capitalize">
-                    {anchor.type}
+                  <span className="text-sm font-medium">
+                    {anchorTypes.find((t) => t.type === anchor.type)?.label ?? anchor.type}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                    Position
+                    Позиция
                   </Label>
                   <Input
                     type="number"
@@ -214,12 +214,12 @@ function WallDiagram({
                     }
                     className="h-8 w-24 text-center text-sm"
                   />
-                  <span className="text-xs text-muted-foreground">mm</span>
+                  <span className="text-xs text-muted-foreground">мм</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                    Width
+                    Ширина
                   </Label>
                   <Input
                     type="number"
@@ -232,7 +232,7 @@ function WallDiagram({
                     }
                     className="h-8 w-24 text-center text-sm"
                   />
-                  <span className="text-xs text-muted-foreground">mm</span>
+                  <span className="text-xs text-muted-foreground">мм</span>
                 </div>
 
                 <Button
@@ -247,12 +247,12 @@ function WallDiagram({
 
                 {overlap && (
                   <p className="w-full text-xs text-destructive">
-                    Overlaps with another anchor
+                    Перекрывается с другой точкой привязки
                   </p>
                 )}
                 {outOfBounds && (
                   <p className="w-full text-xs text-destructive">
-                    Extends beyond wall bounds
+                    Выходит за пределы стены
                   </p>
                 )}
                 {tooClose && (
@@ -268,7 +268,7 @@ function WallDiagram({
 
       {wall.anchors.length === 0 && (
         <p className="text-center text-sm text-muted-foreground py-2">
-          No anchors yet. Add a sink, cooktop, or oven above.
+          Пока нет точек привязки. Добавьте мойку, варочную панель или духовой шкаф выше.
         </p>
       )}
     </div>
@@ -435,10 +435,10 @@ export function WallsStep() {
     <div className="space-y-8">
       <div>
         <h2 className="font-display text-lg font-semibold">
-          Walls & Anchors
+          Стены и точки привязки
         </h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Configure anchor points for fixed appliances on each wall
+          Настройте точки привязки для стационарной техники на каждой стене
         </p>
       </div>
 

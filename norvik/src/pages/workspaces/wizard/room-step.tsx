@@ -11,7 +11,7 @@ function NumberStepper({
   onChange,
   step = 100,
   min = 0,
-  suffix = "mm",
+  suffix = "мм",
 }: {
   label: string;
   value: number;
@@ -66,14 +66,14 @@ function NumberStepper({
 const layoutOptions = [
   {
     value: "linear" as const,
-    label: "Linear",
-    description: "Single wall kitchen",
+    label: "Линейная",
+    description: "Кухня вдоль одной стены",
     icon: RectangleHorizontal,
   },
   {
     value: "l-shaped" as const,
-    label: "L-Shaped",
-    description: "Two-wall corner kitchen",
+    label: "Г-образная",
+    description: "Угловая кухня на две стены",
     icon: CornerDownRight,
   },
 ];
@@ -91,28 +91,28 @@ export function RoomStep() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="font-display text-lg font-semibold">Room Dimensions</h2>
+        <h2 className="font-display text-lg font-semibold">Размеры комнаты</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Set the size of your kitchen space
+          Задайте размеры вашей кухни
         </p>
       </div>
 
       {/* Dimensions — responsive grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <NumberStepper
-          label="Room Width"
+          label="Ширина комнаты"
           value={roomWidth}
           onChange={(v) => setRoomConfig({ roomWidth: v })}
           min={500}
         />
         <NumberStepper
-          label="Room Depth"
+          label="Глубина комнаты"
           value={roomDepth}
           onChange={(v) => setRoomConfig({ roomDepth: v })}
           min={500}
         />
         <NumberStepper
-          label="Wall Height"
+          label="Высота стены"
           value={wallHeight}
           onChange={(v) => setRoomConfig({ wallHeight: v })}
           min={2000}
@@ -124,7 +124,7 @@ export function RoomStep() {
         {/* Layout Type */}
         <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground">
-            Layout Type
+            Тип планировки
           </Label>
           <div className="grid grid-cols-2 gap-3">
             {layoutOptions.map((opt) => {
@@ -167,7 +167,7 @@ export function RoomStep() {
         {/* Room Preview */}
         <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground">
-            Room Preview
+            Предпросмотр комнаты
           </Label>
           <div className="flex items-center justify-center rounded-xl border border-border/60 bg-muted/20 p-8">
             <div className="relative">
@@ -179,7 +179,7 @@ export function RoomStep() {
               {/* Width label — top */}
               <div className="absolute -top-5 left-0 w-full text-center">
                 <span className="text-[11px] font-medium text-muted-foreground">
-                  {roomWidth} mm
+                  {roomWidth} мм
                 </span>
               </div>
 
@@ -189,7 +189,7 @@ export function RoomStep() {
                 style={{ left: previewW + 8, height: previewD }}
               >
                 <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
-                  {roomDepth} mm
+                  {roomDepth} мм
                 </span>
               </div>
 
