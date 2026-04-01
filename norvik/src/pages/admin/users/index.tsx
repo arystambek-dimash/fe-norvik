@@ -31,7 +31,7 @@ const createSchema = z.object({
   last_name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
-  company_id: z.number().min(1, "Select a company"),
+  company_id: z.number().min(1, "Выберите компанию"),
   is_admin: z.boolean(),
 });
 
@@ -73,11 +73,11 @@ export default function AdminUsersPage() {
     mutationFn: usersApi.createEmployee,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("Employee created");
+      toast.success("Сотрудник создан");
       setCreateOpen(false);
       createForm.reset();
     },
-    onError: () => toast.error("Failed to create employee"),
+    onError: () => toast.error("Не удалось создать сотрудника"),
   });
 
   const updateMutation = useMutation({
@@ -85,20 +85,20 @@ export default function AdminUsersPage() {
       usersApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("User updated");
+      toast.success("Пользователь обновлён");
       setEditUser(null);
     },
-    onError: () => toast.error("Failed to update user"),
+    onError: () => toast.error("Не удалось обновить пользователя"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => usersApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("User deleted");
+      toast.success("Пользователь удалён");
       setDeleteUser(null);
     },
-    onError: () => toast.error("Failed to delete user"),
+    onError: () => toast.error("Не удалось удалить пользователя"),
   });
 
   const columns = getUserColumns({
@@ -118,12 +118,12 @@ export default function AdminUsersPage() {
     <div className="space-y-8">
       <div className="animate-fade-up">
         <PageHeader
-          title="Users"
-          description="Manage users and employees"
+          title="Пользователи"
+          description="Управление пользователями и сотрудниками"
           action={
             <Button className="rounded-lg" onClick={() => setCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Employee
+              Добавить сотрудника
             </Button>
           }
         />
@@ -145,35 +145,35 @@ export default function AdminUsersPage() {
       <CrudDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="Add Employee"
+        title="Добавить сотрудника"
         onSubmit={createForm.handleSubmit((data) => createMutation.mutate(data))}
         isLoading={createMutation.isPending}
-        submitLabel="Create"
+        submitLabel="Создать"
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label>Имя</Label>
               <Input {...createForm.register("first_name")} />
             </div>
             <div className="space-y-2">
-              <Label>Last Name</Label>
+              <Label>Фамилия</Label>
               <Input {...createForm.register("last_name")} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Электронная почта</Label>
             <Input type="email" {...createForm.register("email")} />
           </div>
           <div className="space-y-2">
-            <Label>Password</Label>
+            <Label>Пароль</Label>
             <Input type="password" {...createForm.register("password")} />
           </div>
           <div className="space-y-2">
-            <Label>Company</Label>
+            <Label>Компания</Label>
             <Select onValueChange={(v) => createForm.setValue("company_id", Number(v))}>
               <SelectTrigger>
-                <SelectValue placeholder="Select company" />
+                <SelectValue placeholder="Выберите компанию" />
               </SelectTrigger>
               <SelectContent>
                 {companies.map((c) => (
@@ -189,7 +189,7 @@ export default function AdminUsersPage() {
               checked={createForm.watch("is_admin")}
               onCheckedChange={(v) => createForm.setValue("is_admin", v)}
             />
-            <Label>Admin</Label>
+            <Label>Администратор</Label>
           </div>
         </div>
       </CrudDialog>
@@ -198,7 +198,7 @@ export default function AdminUsersPage() {
       <CrudDialog
         open={editUser !== null}
         onOpenChange={() => setEditUser(null)}
-        title="Edit User"
+        title="Редактировать пользователя"
         onSubmit={editForm.handleSubmit((data) =>
           editUser && updateMutation.mutate({ id: editUser.id, data })
         )}
@@ -207,16 +207,16 @@ export default function AdminUsersPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label>Имя</Label>
               <Input {...editForm.register("first_name")} />
             </div>
             <div className="space-y-2">
-              <Label>Last Name</Label>
+              <Label>Фамилия</Label>
               <Input {...editForm.register("last_name")} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Электронная почта</Label>
             <Input type="email" {...editForm.register("email")} />
           </div>
           <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ export default function AdminUsersPage() {
               checked={editForm.watch("is_admin")}
               onCheckedChange={(v) => editForm.setValue("is_admin", v)}
             />
-            <Label>Admin</Label>
+            <Label>Администратор</Label>
           </div>
         </div>
       </CrudDialog>
@@ -233,8 +233,8 @@ export default function AdminUsersPage() {
         open={deleteUser !== null}
         onOpenChange={() => setDeleteUser(null)}
         onConfirm={() => deleteUser && deleteMutation.mutate(deleteUser.id)}
-        title={`Delete ${deleteUser?.first_name} ${deleteUser?.last_name}?`}
-        description="This user will be permanently deleted."
+        title={`Удалить ${deleteUser?.first_name} ${deleteUser?.last_name}?`}
+        description="Этот пользователь будет удалён навсегда."
         isLoading={deleteMutation.isPending}
       />
     </div>

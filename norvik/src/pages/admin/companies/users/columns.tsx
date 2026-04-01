@@ -13,28 +13,28 @@ export function getCompanyUserColumns({ onRemove }: ColumnActions): ColumnDef<Co
     { accessorKey: "id", header: "ID", cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span> },
     {
       id: "name",
-      header: "Name",
+      header: "Имя",
       cell: ({ row }) => `${row.original.first_name} ${row.original.last_name}`,
     },
-    { accessorKey: "email", header: "Email" },
+    { accessorKey: "email", header: "Электронная почта" },
     {
       id: "role",
-      header: "Role",
+      header: "Роль",
       cell: ({ row }) => (
         <Badge variant={row.original.is_manager ? "default" : "secondary"}>
-          {row.original.is_manager ? "Manager" : "Employee"}
+          {row.original.is_manager ? "Менеджер" : "Сотрудник"}
         </Badge>
       ),
     },
     {
       id: "admin",
-      header: "Admin",
+      header: "Администратор",
       cell: ({ row }) =>
-        row.original.is_admin ? <Badge variant="destructive">Admin</Badge> : <span className="text-muted-foreground">No</span>,
+        row.original.is_admin ? <Badge variant="destructive">Администратор</Badge> : <span className="text-muted-foreground">Нет</span>,
     },
     createActionsColumn<CompanyUserRead>({
       extraActions: [
-        { label: "Remove", icon: <Trash2 className="mr-2 h-4 w-4" />, onClick: onRemove, className: "text-destructive" },
+        { label: "Удалить", icon: <Trash2 className="mr-2 h-4 w-4" />, onClick: onRemove, className: "text-destructive" },
       ],
     }),
   ];
