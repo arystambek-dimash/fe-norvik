@@ -12,10 +12,10 @@ interface ColumnActions {
 export function getCompanyColumns({ onEdit, onDelete, onViewUsers }: ColumnActions): ColumnDef<CompanyRead>[] {
   return [
     { accessorKey: "id", header: "ID", cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span> },
-    { accessorKey: "name", header: "Name" },
+    { accessorKey: "name", header: "Название" },
     {
       accessorKey: "created_at",
-      header: "Created",
+      header: "Создано",
       cell: ({ row }) =>
         row.original.created_at ? new Date(row.original.created_at).toLocaleDateString() : "—",
     },
@@ -23,7 +23,7 @@ export function getCompanyColumns({ onEdit, onDelete, onViewUsers }: ColumnActio
       onEdit,
       onDelete,
       extraActions: [
-        { label: "Users", icon: <Users className="mr-2 h-4 w-4" />, onClick: onViewUsers },
+        { label: "Пользователи", icon: <Users className="mr-2 h-4 w-4" />, onClick: onViewUsers },
       ],
     }),
   ];

@@ -18,7 +18,7 @@ import { usePagination } from "@/hooks/use-pagination";
 import { getCompanyColumns } from "./columns";
 import { Plus } from "lucide-react";
 
-const schema = z.object({ name: z.string().min(1, "Name is required") });
+const schema = z.object({ name: z.string().min(1, "Название обязательно") });
 
 export default function AdminCompaniesPage() {
   const navigate = useNavigate();
@@ -38,20 +38,20 @@ export default function AdminCompaniesPage() {
 
   const createMutation = useMutation({
     mutationFn: companiesApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["companies"] }); toast.success("Company created"); setCreateOpen(false); createForm.reset(); },
-    onError: () => toast.error("Failed to create company"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["companies"] }); toast.success("Компания создана"); setCreateOpen(false); createForm.reset(); },
+    onError: () => toast.error("Не удалось создать компанию"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: z.infer<typeof schema> }) => companiesApi.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["companies"] }); toast.success("Company updated"); setEditItem(null); },
-    onError: () => toast.error("Failed to update company"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["companies"] }); toast.success("Компания обновлена"); setEditItem(null); },
+    onError: () => toast.error("Не удалось обновить компанию"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => companiesApi.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["companies"] }); toast.success("Company deleted"); setDeleteItem(null); },
-    onError: () => toast.error("Failed to delete company"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["companies"] }); toast.success("Компания удалена"); setDeleteItem(null); },
+    onError: () => toast.error("Не удалось удалить компанию"),
   });
 
   const columns = getCompanyColumns({
@@ -63,19 +63,19 @@ export default function AdminCompaniesPage() {
   return (
     <div className="space-y-8">
       <div className="animate-fade-up">
-        <PageHeader title="Companies" description="Manage company accounts" action={<Button className="rounded-lg" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Company</Button>} />
+        <PageHeader title="Компании" description="Управление компаниями" action={<Button className="rounded-lg" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Добавить компанию</Button>} />
       </div>
       <DataTable columns={columns} data={data} isLoading={isLoading} pagination={{ offset: pagination.offset, limit: pagination.limit, onNext: pagination.nextPage, onPrev: pagination.prevPage }} />
 
-      <CrudDialog open={createOpen} onOpenChange={setCreateOpen} title="Add Company" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Create">
-        <div className="space-y-2"><Label>Name</Label><Input {...createForm.register("name")} /></div>
+      <CrudDialog open={createOpen} onOpenChange={setCreateOpen} title="Добавить компанию" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Создать">
+        <div className="space-y-2"><Label>Название</Label><Input {...createForm.register("name")} /></div>
       </CrudDialog>
 
-      <CrudDialog open={editItem !== null} onOpenChange={() => setEditItem(null)} title="Edit Company" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
-        <div className="space-y-2"><Label>Name</Label><Input {...editForm.register("name")} /></div>
+      <CrudDialog open={editItem !== null} onOpenChange={() => setEditItem(null)} title="Редактировать компанию" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
+        <div className="space-y-2"><Label>Название</Label><Input {...editForm.register("name")} /></div>
       </CrudDialog>
 
-      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)} title={`Delete ${deleteItem?.name}?`} isLoading={deleteMutation.isPending} />
+      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)} title={`Удалить ${deleteItem?.name}?`} isLoading={deleteMutation.isPending} />
     </div>
   );
 }

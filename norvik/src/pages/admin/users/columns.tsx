@@ -11,17 +11,17 @@ interface ColumnActions {
 export function getUserColumns({ onEdit, onDelete }: ColumnActions): ColumnDef<UserRead>[] {
   return [
     { accessorKey: "id", header: "ID", cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span> },
-    { accessorKey: "first_name", header: "First Name" },
-    { accessorKey: "last_name", header: "Last Name" },
-    { accessorKey: "email", header: "Email" },
+    { accessorKey: "first_name", header: "Имя" },
+    { accessorKey: "last_name", header: "Фамилия" },
+    { accessorKey: "email", header: "Электронная почта" },
     {
       accessorKey: "is_admin",
-      header: "Role",
+      header: "Роль",
       cell: ({ row }) =>
         row.original.is_admin ? (
-          <Badge>Admin</Badge>
+          <Badge>Администратор</Badge>
         ) : (
-          <Badge variant="secondary">User</Badge>
+          <Badge variant="secondary">Пользователь</Badge>
         ),
     },
     createActionsColumn({ onEdit, onDelete }),
