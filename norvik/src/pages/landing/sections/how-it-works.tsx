@@ -6,23 +6,23 @@ const steps = [
   {
     number: "01",
     icon: Palette,
-    title: "Choose Your Style",
+    title: "Выберите стиль",
     description:
-      "Browse our curated catalog of premium cabinet styles, finishes, and hardware options.",
+      "Изучите наш подобранный каталог премиальных стилей шкафов, отделок и фурнитуры.",
   },
   {
     number: "02",
     icon: PenTool,
-    title: "Configure Layout",
+    title: "Настройте планировку",
     description:
-      "Use the visual configurator to arrange cabinets, set dimensions, and perfect your design.",
+      "Используйте визуальный конфигуратор для расстановки шкафов, задания размеров и доведения дизайна до совершенства.",
   },
   {
     number: "03",
     icon: Download,
-    title: "Export & Order",
+    title: "Экспорт и заказ",
     description:
-      "Generate detailed specs, share with clients, and place orders directly from your designs.",
+      "Формируйте детальные спецификации, делитесь с клиентами и оформляйте заказы прямо из ваших проектов.",
   },
 ];
 
@@ -75,10 +75,10 @@ export function HowItWorks() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="mx-auto mb-16 max-w-2xl text-center">
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            How it Works
+            Как это работает
           </p>
           <h2 className="font-display text-3xl tracking-tight md:text-4xl">
-            From inspiration to installation
+            От идеи до установки
           </h2>
         </div>
 

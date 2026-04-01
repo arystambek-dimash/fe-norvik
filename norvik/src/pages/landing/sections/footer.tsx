@@ -8,16 +8,16 @@ const socialLinks: { icon: LucideIcon; label: string }[] = [
 
 const columns = [
   {
-    title: "Product",
-    links: ["Configurator", "Catalog", "Workspaces", "Pricing"],
+    title: "Продукт",
+    links: ["Конфигуратор", "Каталог", "Рабочие пространства", "Цены"],
   },
   {
-    title: "Company",
-    links: ["About", "Careers", "Blog", "Contact"],
+    title: "Компания",
+    links: ["О нас", "Карьера", "Блог", "Контакты"],
   },
   {
-    title: "Support",
-    links: ["Help Center", "Documentation", "API", "Status"],
+    title: "Поддержка",
+    links: ["Центр помощи", "Документация", "API", "Статус"],
   },
 ];
 
@@ -28,9 +28,9 @@ export function Footer() {
         {/* Newsletter signup row */}
         <div className="mb-12 flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-6 md:flex-row">
           <div>
-            <h3 className="font-display text-lg text-white">Stay in the loop</h3>
+            <h3 className="font-display text-lg text-white">Будьте в курсе</h3>
             <p className="text-sm text-white/40">
-              Get product updates and design inspiration delivered to your inbox.
+              Получайте обновления продукта и вдохновение для дизайна прямо на почту.
             </p>
           </div>
           <div className="flex w-full overflow-hidden rounded-lg border border-white/10 md:w-auto">
@@ -40,7 +40,7 @@ export function Footer() {
               className="w-full bg-transparent px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none md:w-64"
             />
             <button className="whitespace-nowrap bg-brass px-5 py-2.5 text-sm font-semibold text-espresso transition-colors hover:bg-brass/90">
-              Subscribe
+              Подписаться
             </button>
           </div>
         </div>
@@ -53,8 +53,8 @@ export function Footer() {
               <span className="font-display text-lg text-white">Norvik</span>
             </div>
             <p className="max-w-xs text-sm leading-relaxed text-white/40">
-              Professional kitchen design and configuration platform for studios
-              and designers.
+              Профессиональная платформа для проектирования и конфигурации кухонь
+              для студий и дизайнеров.
             </p>
             {/* Social media icons */}
             <div className="mt-5 flex items-center gap-3">
@@ -92,14 +92,14 @@ export function Footer() {
           <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <div className="flex items-center justify-between pt-6">
             <p className="text-xs text-white/25">
-              &copy; {new Date().getFullYear()} Norvik Studio. All rights
-              reserved.
+              &copy; {new Date().getFullYear()} Norvik Studio. Все права
+              защищены.
             </p>
             <a
               href="#"
               className="text-xs text-white/25 transition-colors hover:text-brass"
             >
-              Back to top
+              Наверх
             </a>
           </div>
         </div>
