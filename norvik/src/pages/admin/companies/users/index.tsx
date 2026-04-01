@@ -53,21 +53,21 @@ export default function AdminCompanyUsersPage() {
     mutationFn: (userId: number) => companiesApi.addUser(numericCompanyId, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-users", numericCompanyId] });
-      toast.success("User added to company");
+      toast.success("Пользователь добавлен в компанию");
       setAddOpen(false);
       setSelectedUserId(null);
     },
-    onError: () => toast.error("Failed to add user"),
+    onError: () => toast.error("Не удалось добавить пользователя"),
   });
 
   const removeMutation = useMutation({
     mutationFn: (userId: number) => companiesApi.removeUser(numericCompanyId, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-users", numericCompanyId] });
-      toast.success("User removed from company");
+      toast.success("Пользователь удалён из компании");
       setRemoveUser(null);
     },
-    onError: () => toast.error("Failed to remove user"),
+    onError: () => toast.error("Не удалось удалить пользователя"),
   });
 
   const columns = getCompanyUserColumns({ onRemove: setRemoveUser });
@@ -76,15 +76,15 @@ export default function AdminCompanyUsersPage() {
     <div className="space-y-8">
       <div className="animate-fade-up">
         <PageHeader
-          title="Company Users"
-          description="Manage users in this company"
+          title="Пользователи компании"
+          description="Управление пользователями компании"
           action={
             <div className="flex gap-2">
               <Button variant="outline" className="rounded-lg" onClick={() => navigate(ROUTES.ADMIN_COMPANIES)}>
-                <ArrowLeft className="mr-2 h-4 w-4" />Back
+                <ArrowLeft className="mr-2 h-4 w-4" />Назад
               </Button>
               <Button className="rounded-lg" onClick={() => setAddOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />Add User
+                <Plus className="mr-2 h-4 w-4" />Добавить пользователя
               </Button>
             </div>
           }
@@ -106,16 +106,16 @@ export default function AdminCompanyUsersPage() {
       <CrudDialog
         open={addOpen}
         onOpenChange={setAddOpen}
-        title="Add User to Company"
+        title="Добавить пользователя в компанию"
         onSubmit={(e) => { e.preventDefault(); if (selectedUserId) addMutation.mutate(selectedUserId); }}
         isLoading={addMutation.isPending}
-        submitLabel="Add"
+        submitLabel="Добавить"
       >
         <div className="space-y-2">
-          <Label>Select User</Label>
+          <Label>Выберите пользователя</Label>
           <Select onValueChange={(v) => setSelectedUserId(Number(v))}>
             <SelectTrigger>
-              <SelectValue placeholder="Select a user" />
+              <SelectValue placeholder="Выберите пользователя" />
             </SelectTrigger>
             <SelectContent>
               {availableUsers.map((user: UserRead) => (
@@ -132,8 +132,8 @@ export default function AdminCompanyUsersPage() {
         open={removeUser !== null}
         onOpenChange={() => setRemoveUser(null)}
         onConfirm={() => removeUser && removeMutation.mutate(removeUser.id)}
-        title={`Remove ${removeUser?.first_name} ${removeUser?.last_name}?`}
-        description="This user will be removed from the company."
+        title={`Удалить ${removeUser?.first_name} ${removeUser?.last_name}?`}
+        description="Этот пользователь будет удалён из компании."
         isLoading={removeMutation.isPending}
       />
     </div>
