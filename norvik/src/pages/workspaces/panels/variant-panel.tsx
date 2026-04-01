@@ -115,6 +115,18 @@ function VariantCard({
         <span>{variant.plan.walls.length} wall{variant.plan.walls.length !== 1 ? "s" : ""}</span>
       </div>
 
+      {variant.plan.anchorShifts && variant.plan.anchorShifts.length > 0 && (
+        <div className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          {variant.plan.anchorShifts.map((s, i) => (
+            <div key={i}>
+              {s.anchorType === 'sink' ? 'Мойка' : s.anchorType === 'cooktop' ? 'Плита' : s.anchorType}
+              {' '}сдвинута на {s.delta > 0 ? '+' : ''}{s.delta}мм
+              ({s.originalPosition} → {s.newPosition}мм)
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="mt-2">
         <button
           type="button"

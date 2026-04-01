@@ -12,6 +12,8 @@ interface Anchor {
   position: number;
   width: number;
   glbFile?: string | null;
+  isVirtual?: boolean;
+  virtualKind?: 'corner' | 'reserved';
 }
 
 interface GoldenRule {
@@ -65,6 +67,10 @@ interface PlannerState {
   // Fridge placement side
   fridgeSide: 'left' | 'right';
 
+  // Selected corner cabinets for L-shaped layouts
+  selectedLowerCornerCabinetId: number | null;
+  selectedUpperCornerCabinetId: number | null;
+
   // Countertop customization
   countertopColor: string | null;
   countertopTextureUrl: string | null;
@@ -101,6 +107,8 @@ interface PlannerState {
   setLShapedSide: (v: 'left' | 'right') => void;
   setSideWallWidth: (v: number) => void;
   setFridgeSide: (v: 'left' | 'right') => void;
+  setSelectedLowerCornerCabinetId: (id: number | null) => void;
+  setSelectedUpperCornerCabinetId: (id: number | null) => void;
   setCountertopColor: (color: string | null) => void;
   setCountertopTextureUrl: (url: string | null) => void;
   setFacadeColor: (color: string | null) => void;
@@ -128,6 +136,8 @@ const initialState = {
   sinkModuleWidth: 600 as 600 | 800,
   drawerHousingWidth: 400 as 400 | 600,
   fridgeSide: 'right' as 'left' | 'right',
+  selectedLowerCornerCabinetId: null as number | null,
+  selectedUpperCornerCabinetId: null as number | null,
   countertopColor: null as string | null,
   countertopTextureUrl: null as string | null,
   facadeColor: null as string | null,
@@ -156,6 +166,8 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setLShapedSide: (v) => set({ lShapedSide: v }),
   setSideWallWidth: (v) => set({ sideWallWidth: v }),
   setFridgeSide: (v) => set({ fridgeSide: v }),
+  setSelectedLowerCornerCabinetId: (id) => set({ selectedLowerCornerCabinetId: id }),
+  setSelectedUpperCornerCabinetId: (id) => set({ selectedUpperCornerCabinetId: id }),
   setCountertopColor: (color) => set({ countertopColor: color, countertopTextureUrl: null }),
   setCountertopTextureUrl: (url) => set({ countertopTextureUrl: url, countertopColor: null }),
   setFacadeColor: (color) => set({ facadeColor: color, facadeTextureUrl: null }),

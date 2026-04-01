@@ -1,8 +1,11 @@
 import type { KitchenPlan } from '../types';
 import type { ScoringContext, CategoryDetail, ScoringAnchor } from './types';
 import { smoothScore, toPercent } from './smooth';
-import { allModules, anchorCenter } from './helpers';
+import { allModules, anchorCenter, getWallLength } from './helpers';
 import {
+  CONTINUOUS_COUNTERTOP_MIN,
+  CONTINUOUS_COUNTERTOP_MAX,
+  CONTINUOUS_COUNTERTOP_TOLERANCE,
   LOWER_DEPTH,
   PREP_ZONE_MIN,
   PREP_ZONE_MAX,
@@ -54,6 +57,22 @@ function findAnchor(
   return anchors.find((a) => a.type === type);
 }
 
+function anchorEdgeGap(a: ScoringAnchor, b: ScoringAnchor): number | null {
+  if (a.wallId !== b.wallId) return null;
+  const aEnd = a.position + a.width;
+  const bEnd = b.position + b.width;
+  return Math.max(0, Math.max(b.position - aEnd, a.position - bEnd));
+}
+
+function wallLengthById(
+  wallId: string,
+  plan: KitchenPlan,
+  context: ScoringContext,
+): number {
+  const index = plan.walls.findIndex((wall) => wall.wallId === wallId);
+  return index >= 0 ? getWallLength(index, context) : context.roomWidth;
+}
+
 // ---------------------------------------------------------------------------
 // Sub-metric scorers
 // ---------------------------------------------------------------------------
@@ -69,11 +88,53 @@ function scoreSinkCooktopMetrics(ctx: ScoringContext): { prepZone: number; sinkH
   const cooktop = findAnchor(ctx.anchors, 'cooktop');
   if (!sink || !cooktop) return { prepZone: 50, sinkHobDistance: 50 };
 
-  const dist = anchorDistance(sink, cooktop, ctx);
+  const edgeGap = anchorEdgeGap(sink, cooktop);
+  const centerDist = anchorDistance(sink, cooktop, ctx);
   return {
-    prepZone: toPercent(smoothScore(dist, PREP_ZONE_MIN, PREP_ZONE_MAX, PREP_ZONE_TOLERANCE)),
-    sinkHobDistance: toPercent(smoothScore(dist, SINK_HOB_MIN, SINK_HOB_MAX, SINK_HOB_TOLERANCE)),
+    prepZone: edgeGap == null
+      ? 50
+      : toPercent(smoothScore(edgeGap, PREP_ZONE_MIN, PREP_ZONE_MAX, PREP_ZONE_TOLERANCE)),
+    sinkHobDistance: toPercent(smoothScore(centerDist, SINK_HOB_MIN, SINK_HOB_MAX, SINK_HOB_TOLERANCE)),
   };
+}
+
+function scoreContinuousCountertop(
+  plan: KitchenPlan,
+  ctx: ScoringContext,
+): number {
+  const runs = plan.walls
+    .filter((wall) => wall.modules.some((m) => m.type === 'lower' || m.type === 'filler'))
+    .map((wall) => {
+      const wallAnchors = ctx.anchors
+        .filter((anchor) => anchor.wallId === wall.wallId)
+        .map((anchor) => ({ start: anchor.position, end: anchor.position + anchor.width }));
+      const tallBlocks = wall.modules
+        .filter((m) => m.type === 'tall')
+        .map((m) => ({ start: m.x, end: m.x + m.width }));
+      const blocks = [...wallAnchors, ...tallBlocks].sort((a, b) => a.start - b.start);
+
+      let cursor = 0;
+      let longest = 0;
+      for (const block of blocks) {
+        if (block.start > cursor) {
+          longest = Math.max(longest, block.start - cursor);
+        }
+        cursor = Math.max(cursor, block.end);
+      }
+
+      return Math.max(longest, wallLengthById(wall.wallId, plan, ctx) - cursor);
+    });
+
+  if (runs.length === 0) return 50;
+  const bestRun = Math.max(...runs);
+  return toPercent(
+    smoothScore(
+      bestRun,
+      CONTINUOUS_COUNTERTOP_MIN,
+      CONTINUOUS_COUNTERTOP_MAX,
+      CONTINUOUS_COUNTERTOP_TOLERANCE,
+    ),
+  );
 }
 
 /** 3. Aisle clearance — soft version of hard constraint (20%) */
@@ -153,11 +214,12 @@ function scoreWorkingTriangle(ctx: ScoringContext): number {
 // ---------------------------------------------------------------------------
 
 const SUB_WEIGHTS = {
-  prepZone: 0.25,
-  sinkHobDistance: 0.20,
-  aisleClearance: 0.20,
-  landingArea: 0.20,
-  workingTriangle: 0.15,
+  prepZone: 0.20,
+  sinkHobDistance: 0.15,
+  aisleClearance: 0.15,
+  landingArea: 0.15,
+  workingTriangle: 0.10,
+  continuousCountertop: 0.25,
 } as const;
 
 export function scoreErgonomics(
@@ -171,6 +233,7 @@ export function scoreErgonomics(
     aisleClearance: scoreAisleClearance(context),
     landingArea: scoreLandingArea(plan, context),
     workingTriangle: scoreWorkingTriangle(context),
+    continuousCountertop: scoreContinuousCountertop(plan, context),
   };
 
   const score =
@@ -178,7 +241,8 @@ export function scoreErgonomics(
     subMetrics.sinkHobDistance * SUB_WEIGHTS.sinkHobDistance +
     subMetrics.aisleClearance * SUB_WEIGHTS.aisleClearance +
     subMetrics.landingArea * SUB_WEIGHTS.landingArea +
-    subMetrics.workingTriangle * SUB_WEIGHTS.workingTriangle;
+    subMetrics.workingTriangle * SUB_WEIGHTS.workingTriangle +
+    subMetrics.continuousCountertop * SUB_WEIGHTS.continuousCountertop;
 
   return {
     score: Math.round(score * 100) / 100,

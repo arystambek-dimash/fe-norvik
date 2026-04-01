@@ -62,7 +62,7 @@ export function segmentWall(
     }
 
     // Move cursor past this anchor
-    cursor = anchorEnd;
+    cursor = Math.max(cursor, anchorEnd);
   }
 
   // Gap after the last anchor to the end of the wall
@@ -118,7 +118,7 @@ export function segmentWallForUppers(
         isTrim: width <= MIN_SEGMENT,
       });
     }
-    cursor = anchorEnd;
+    cursor = Math.max(cursor, anchorEnd);
   }
 
   if (cursor < effectiveEnd) {

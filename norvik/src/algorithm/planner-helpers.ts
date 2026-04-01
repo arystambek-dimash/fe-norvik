@@ -1,6 +1,8 @@
 import type { CabinetRead } from '@/types/entities';
 import { CabinetKind, CabinetSubtype, CabinetType } from '@/types/enums';
 import type {
+  Anchor,
+  AnchorShift,
   CornerJunction,
   KitchenPlan,
   PlacedModule,
@@ -29,12 +31,18 @@ import {
   MIN_SEGMENT,
   ARTICLE_PREFIX,
   MAX_COUNTERTOP,
+  PREP_ZONE_MIN,
+  PREP_ZONE_MAX,
+  PREP_ZONE_TOLERANCE,
+  CONTINUOUS_COUNTERTOP_MIN,
+  CONTINUOUS_COUNTERTOP_MAX,
+  CONTINUOUS_COUNTERTOP_TOLERANCE,
   SIDE_PANEL_WIDTH,
 } from './constants';
 import { segmentWall, segmentWallForUppers } from './segmenter';
 import { GoldenTable } from './golden-table';
 import { solve } from './solver';
-import { scorePlan, EMPTY_SCORE_BREAKDOWN } from './scoring';
+import { scorePlan, smoothScore, EMPTY_SCORE_BREAKDOWN } from './scoring';
 import type { ScoringContext } from './scoring/types';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -305,7 +313,7 @@ export function solveUpperForWall(
   useHood?: boolean,
 ): PlacedModule[][] {
   const allUppers = availableModules.filter(
-    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width > SIDE_PANEL_WIDTH,
+    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width >= SIDE_PANEL_WIDTH,
   );
   if (allUppers.length === 0) return [[]];
 
@@ -424,7 +432,7 @@ export function solveUppersAlignedToLowers(
 ): PlacedModule[][] {
   // ── 1. Filter & group upper modules by height ──
   const allUppers = availableModules.filter(
-    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width > SIDE_PANEL_WIDTH,
+    (m) => m.type === CabinetType.UPPER && m.kind === CabinetKind.DOOR && m.width >= SIDE_PANEL_WIDTH,
   );
   if (allUppers.length === 0) return [[]];
 
@@ -471,6 +479,7 @@ export function solveUppersAlignedToLowers(
 
   // Anchors (sink, cooktop) — skip cooktop when hood is enabled
   for (const anchor of wallConfig.anchors) {
+    if (anchor.isVirtual) continue;
     if (useHood && anchor.type === 'cooktop') continue;
     if (anchor.position < effectiveStart || anchor.position + anchor.width > effectiveEnd) continue;
     if (isBlocked(anchor.position, anchor.width)) continue;
@@ -548,6 +557,7 @@ export function generateWallVariants(
   return combos.map((segments) => ({
     wallId: wallConfig.id,
     modules: segments.flat(),
+    anchors: wallConfig.anchors.map((anchor) => ({ ...anchor })),
   }));
 }
 
@@ -562,16 +572,25 @@ export function generateWallVariants(
 export function selectCornerCabinet(
   cornerCabinets: CabinetRead[],
   junctionId: string,
-  index: number = 0,
+  options?: {
+    cabinetId?: number | null;
+    index?: number;
+    yOffset?: number;
+  },
 ): PlacedModule | null {
   if (cornerCabinets.length === 0) return null;
 
-  const cab = cornerCabinets[index % cornerCabinets.length];
+  const selectedById = options?.cabinetId != null
+    ? cornerCabinets.find((cabinet) => cabinet.id === options.cabinetId)
+    : null;
+  const fallbackIndex = options?.index ?? 0;
+  const cab = selectedById ?? cornerCabinets[fallbackIndex % cornerCabinets.length];
   const mod = cabinetToModule(cab, 0, junctionId, {
     type: 'corner',
-    height: cab.height || LOWER_HEIGHT,
-    depth: cab.depth || CORNER_CABINET_DEPTH,
+    height: cab.height || (cab.type === CabinetType.UPPER ? UPPER_HEIGHT : LOWER_HEIGHT),
+    depth: cab.depth || (cab.type === CabinetType.UPPER ? UPPER_DEPTH : CORNER_CABINET_DEPTH),
     rotation: 0,
+    yOffset: options?.yOffset,
   });
   mod.width = cab.width || CORNER_WALL_OCCUPANCY;
   return mod;
@@ -685,34 +704,66 @@ export function placeSidePanels200(
 ): void {
   if (!wallPlan.modules.some((m) => m.type === 'lower')) return;
 
-  // Find the first valid insertion position (only one per wall)
-  let insertX: number | null = null;
+  interface Candidate {
+    insertX: number;
+    score: number;
+  }
+
+  const overlapsOtherAnchors = (start: number) =>
+    wallConfig.anchors.some((anchor) => start < anchor.position + anchor.width && start + SIDE_PANEL_WIDTH > anchor.position);
+
+  const scoreCandidate = (insertX: number) => {
+    const finalEnd = insertX + SIDE_PANEL_WIDTH;
+    let fillerOverlap = 0;
+    let lowerOverlap = 0;
+    let exactFillerMatch = false;
+
+    for (const mod of wallPlan.modules) {
+      if (mod.type !== 'lower' && mod.type !== 'filler') continue;
+      const overlap = Math.min(finalEnd, mod.x + mod.width) - Math.max(insertX, mod.x);
+      if (overlap <= 0) continue;
+
+      if (mod.type === 'filler') {
+        fillerOverlap += overlap;
+        if (mod.x === insertX && mod.width === SIDE_PANEL_WIDTH) {
+          exactFillerMatch = true;
+        }
+      } else {
+        lowerOverlap += overlap;
+      }
+    }
+
+    return (exactFillerMatch ? 1000 : 0) + fillerOverlap * 10 - lowerOverlap * 5;
+  };
+
+  const collectCandidate = (insertX: number | null, out: Candidate[]) => {
+    if (insertX == null) return;
+    if (insertX < 0 || insertX + SIDE_PANEL_WIDTH > wallConfig.length) return;
+    if (overlapsOtherAnchors(insertX)) return;
+    out.push({ insertX, score: scoreCandidate(insertX) });
+  };
+
+  let candidates: Candidate[] = [];
 
   // 1. Next to dishwashers (ПММ prefix) — higher priority
   for (const mod of wallPlan.modules) {
     if (mod.type !== 'lower' || !mod.article.startsWith(ARTICLE_PREFIX.DISHWASHER)) continue;
-    const modEnd = mod.x + mod.width;
-    if (modEnd + SIDE_PANEL_WIDTH <= wallConfig.length) {
-      insertX = modEnd;
-    } else if (mod.x - SIDE_PANEL_WIDTH >= 0) {
-      insertX = mod.x - SIDE_PANEL_WIDTH;
-    }
-    if (insertX !== null) break;
+    collectCandidate(mod.x + mod.width, candidates);
+    collectCandidate(mod.x - SIDE_PANEL_WIDTH, candidates);
+    if (candidates.length > 0) break;
   }
 
-  // 2. Next to cooktop anchors — only if no dishwasher found
-  if (insertX === null) {
+  // 2. Next to cooktop anchors — only if no dishwasher candidates found
+  if (candidates.length === 0) {
     for (const anchor of wallConfig.anchors) {
       if (anchor.type !== 'cooktop') continue;
-      const anchorEnd = anchor.position + anchor.width;
-      if (anchorEnd + SIDE_PANEL_WIDTH <= wallConfig.length) {
-        insertX = anchorEnd;
-      } else if (anchor.position - SIDE_PANEL_WIDTH >= 0) {
-        insertX = anchor.position - SIDE_PANEL_WIDTH;
-      }
-      if (insertX !== null) break;
+      collectCandidate(anchor.position + anchor.width, candidates);
+      collectCandidate(anchor.position - SIDE_PANEL_WIDTH, candidates);
     }
   }
+
+  const insertX = candidates
+    .sort((a, b) => b.score - a.score || a.insertX - b.insertX)[0]?.insertX ?? null;
 
   if (insertX === null) return;
 
@@ -918,6 +969,38 @@ export function placePlateModules(
 // ── СЯШ drawer unit placement ────────────────────────────────────────────────
 
 /**
+ * Place a dishwasher (ПММ) immediately after the sink when the full
+ * sink→dishwasher→drawer chain fits on the wall.
+ */
+export function placeDishwasherAdjacentToSink(
+  wallPlan: WallPlan,
+  wallConfig: WallConfig,
+  dishwasherCab: CabinetRead,
+  drawerHousingCab: CabinetRead | null,
+): void {
+  if (!drawerHousingCab) return;
+  const drawerWidth = drawerHousingCab.width;
+
+  for (const anchor of wallConfig.anchors) {
+    if (anchor.type !== 'sink') continue;
+
+    const plan = planSinkAdjacency(wallConfig, anchor, drawerWidth, dishwasherCab.width);
+    if (plan.dishwasherX == null) continue;
+
+    const insertX = plan.dishwasherX;
+    const finalEnd = insertX + dishwasherCab.width;
+
+    wallPlan.modules = wallPlan.modules.filter((m) => {
+      if (m.type !== 'lower' && m.type !== 'filler') return true;
+      const mEnd = m.x + m.width;
+      return mEnd <= insertX || m.x >= finalEnd;
+    });
+
+    wallPlan.modules.push(cabinetToModule(dishwasherCab, insertX, wallPlan.wallId, { type: 'lower' }));
+  }
+}
+
+/**
  * Place a drawer unit (СЯШ) right after the sink module on each wall.
  * If a dishwasher (ПММ) is present, places the drawer after the dishwasher instead.
  *
@@ -1060,6 +1143,7 @@ export interface PlannerContext {
   maps: ReturnType<typeof buildModuleMaps>;
   solverModules: CabinetRead[];
   sidePanelCab: CabinetRead | null;
+  dishwasherCab: CabinetRead | null;
   sinkModuleCab: CabinetRead | null;
   drawerUnitCab: CabinetRead | null;
   plateCab: CabinetRead | null;
@@ -1077,6 +1161,9 @@ export function preparePlannerContext(input: PlannerInput): PlannerContext {
   const sidePanelCab = input.modules.find(
     (m) => m.article.startsWith(ARTICLE_PREFIX.SIDE_PANEL) && m.width === SIDE_PANEL_WIDTH,
   ) ?? null;
+  const dishwasherCab = input.modules.find(
+    (m) => m.article.startsWith(ARTICLE_PREFIX.DISHWASHER) && m.type === CabinetType.LOWER,
+  ) ?? null;
 
   const isSinkModule = (m: CabinetRead) =>
     m.kind === CabinetKind.SINK && m.subtype === CabinetSubtype.SINK_BASE;
@@ -1088,6 +1175,7 @@ export function preparePlannerContext(input: PlannerInput): PlannerContext {
       m.width > SIDE_PANEL_WIDTH &&
       !m.is_corner &&
       !(m.article.startsWith(ARTICLE_PREFIX.SIDE_PANEL) && m.width === SIDE_PANEL_WIDTH) &&
+      !m.article.startsWith(ARTICLE_PREFIX.DISHWASHER) &&
       !isSinkModule(m) &&
       !isDrawerUnit(m) &&
       m.kind !== CabinetKind.PLATE &&
@@ -1128,7 +1216,7 @@ export function preparePlannerContext(input: PlannerInput): PlannerContext {
 
   return {
     goldenTable, maps, solverModules,
-    sidePanelCab, sinkModuleCab, drawerUnitCab, plateCab, fridgeCab, penalCab,
+    sidePanelCab, dishwasherCab, sinkModuleCab, drawerUnitCab, plateCab, fridgeCab, penalCab,
     antresolByWidth,
   };
 }
@@ -1137,21 +1225,458 @@ export interface TallConfig {
   fridgeCab: CabinetRead | null;
   penalCab: CabinetRead | null;
   fridgeSide: 'left' | 'right';
+  startOffset?: number;
+  endOffset?: number;
 }
 
-export function processWall(
+function mergeWallOffsets(
+  primary?: { startOffset?: number; endOffset?: number },
+  secondary?: { startOffset?: number; endOffset?: number },
+): { startOffset?: number; endOffset?: number } | undefined {
+  const startOffset = (primary?.startOffset ?? 0) + (secondary?.startOffset ?? 0);
+  const endOffset = (primary?.endOffset ?? 0) + (secondary?.endOffset ?? 0);
+
+  if (startOffset === 0 && endOffset === 0) {
+    return undefined;
+  }
+
+  return { startOffset, endOffset };
+}
+
+// ── Anchor shift helpers ─────────────────────────────────────────────────────
+
+const MAX_ANCHOR_SHIFT = 100; // max mm to shift a single anchor
+const MAX_SHIFT_CONFIGS = 16;
+const MAX_SHIFT_COMBINATIONS = 256;
+const MAX_SHIFTED_PIPELINE_VARIANTS = 3;
+
+interface ShiftedWallConfig {
+  wallConfig: WallConfig;
+  shifts: AnchorShift[];
+}
+
+interface AnchorPositionOption {
+  position: number;
+  delta: number;
+}
+
+function getAnchorEdgeGap(a: Anchor, b: Anchor): number | null {
+  if (a === b) return 0;
+  const aEnd = a.position + a.width;
+  const bEnd = b.position + b.width;
+  const gap = Math.max(b.position - aEnd, a.position - bEnd);
+  return gap >= 0 ? gap : null;
+}
+
+function scoreAnchorConfiguration(
+  original: WallConfig,
+  effectiveStart: number,
+  effectiveEnd: number,
+  drawerWidth: number,
+): number {
+  const segments = segmentWall(original, {
+    startOffset: effectiveStart,
+    endOffset: original.length - effectiveEnd,
+  });
+
+  let score = 0;
+  let longestSegment = 0;
+
+  for (const segment of segments) {
+    longestSegment = Math.max(longestSegment, segment.width);
+
+    if (segment.width > 0 && segment.width <= MIN_SEGMENT) {
+      score -= 350;
+      continue;
+    }
+
+    const remainder = ((segment.width % MODULE_GRID) + MODULE_GRID) % MODULE_GRID;
+    if (remainder !== 0) {
+      score -= Math.min(remainder, MODULE_GRID - remainder) * 8;
+    }
+
+    if (segment.width > MIN_SEGMENT && segment.width < 300) {
+      score -= 60;
+    }
+  }
+
+  const sinkCooktopPairs: Array<readonly [Anchor, Anchor]> = [];
+  for (let i = 0; i < original.anchors.length; i++) {
+    const anchor = original.anchors[i];
+    if (anchor.type !== 'sink' && anchor.type !== 'cooktop') continue;
+
+    for (let j = i + 1; j < original.anchors.length; j++) {
+      const other = original.anchors[j];
+      if (other.type !== 'sink' && other.type !== 'cooktop') continue;
+      if (other.type === anchor.type) continue;
+      sinkCooktopPairs.push([anchor, other] as const);
+    }
+  }
+
+  for (const [anchor, other] of sinkCooktopPairs) {
+    const gap = getAnchorEdgeGap(anchor, other);
+    if (gap == null) continue;
+
+    if (gap < drawerWidth) {
+      score -= 600;
+    }
+
+    score += smoothScore(gap, PREP_ZONE_MIN, PREP_ZONE_MAX, PREP_ZONE_TOLERANCE) * 220;
+  }
+
+  score += smoothScore(
+    longestSegment,
+    CONTINUOUS_COUNTERTOP_MIN,
+    CONTINUOUS_COUNTERTOP_MAX,
+    CONTINUOUS_COUNTERTOP_TOLERANCE,
+  ) * 160;
+
+  return score;
+}
+
+function collectAnchorPositionOptions(
+  original: WallConfig,
+  idx: number,
+  effectiveStart: number,
+  effectiveEnd: number,
+  drawerWidth: number,
+): AnchorPositionOption[] {
+  const anchor = original.anchors[idx];
+  const options = new Map<number, AnchorPositionOption>();
+  const sortedAnchors = original.anchors
+    .map((item, originalIdx) => ({ item, originalIdx }))
+    .sort((a, b) => a.item.position - b.item.position);
+  const sortedIndex = sortedAnchors.findIndex((entry) => entry.originalIdx === idx);
+  const prevEnd = sortedIndex > 0
+    ? sortedAnchors[sortedIndex - 1].item.position + sortedAnchors[sortedIndex - 1].item.width
+    : effectiveStart;
+  const nextStart = sortedIndex < sortedAnchors.length - 1
+    ? sortedAnchors[sortedIndex + 1].item.position
+    : effectiveEnd;
+  const beforeSegment = anchor.position - prevEnd;
+  const afterSegment = nextStart - (anchor.position + anchor.width);
+  const beforeRemainder = ((beforeSegment % MODULE_GRID) + MODULE_GRID) % MODULE_GRID;
+  const afterRemainder = ((afterSegment % MODULE_GRID) + MODULE_GRID) % MODULE_GRID;
+  const oppositeAnchors = original.anchors.filter(
+    (other) =>
+      other !== anchor &&
+      (other.type === 'sink' || other.type === 'cooktop') &&
+      other.type !== anchor.type,
+  );
+  const hasStructuralSidePanelPair = oppositeAnchors.some(
+    (other) => getAnchorEdgeGap(anchor, other) === SIDE_PANEL_WIDTH,
+  );
+  const hasOffGridNeighbour = (
+    (beforeSegment > MIN_SEGMENT && beforeRemainder !== 0) ||
+    (afterSegment > MIN_SEGMENT && afterRemainder !== 0)
+  );
+
+  if ((oppositeAnchors.length === 0 && !hasOffGridNeighbour) || (hasStructuralSidePanelPair && !hasOffGridNeighbour)) {
+    return [{ position: anchor.position, delta: 0 }];
+  }
+
+  const addPosition = (position: number) => {
+    const delta = position - anchor.position;
+    if (Math.abs(delta) > MAX_ANCHOR_SHIFT) return;
+    if (position < effectiveStart || position + anchor.width > effectiveEnd) return;
+
+    const existing = options.get(position);
+    if (!existing || Math.abs(delta) < Math.abs(existing.delta)) {
+      options.set(position, { position, delta });
+    }
+  };
+
+  addPosition(anchor.position);
+
+  for (const delta of [-100, -50, 50, 100]) {
+    addPosition(anchor.position + delta);
+  }
+
+  addPosition(Math.floor(anchor.position / MODULE_GRID) * MODULE_GRID);
+  addPosition(Math.ceil(anchor.position / MODULE_GRID) * MODULE_GRID);
+
+  const addGridAlignedDeltas = (
+    segmentWidth: number,
+    side: 'before' | 'after',
+  ) => {
+    if (segmentWidth <= MIN_SEGMENT) return;
+    const remainder = ((segmentWidth % MODULE_GRID) + MODULE_GRID) % MODULE_GRID;
+    if (remainder === 0) return;
+
+    if (side === 'before') {
+      addPosition(anchor.position - remainder);
+      addPosition(anchor.position + (MODULE_GRID - remainder));
+      return;
+    }
+
+    addPosition(anchor.position + remainder);
+    addPosition(anchor.position - (MODULE_GRID - remainder));
+  };
+
+  addGridAlignedDeltas(beforeSegment, 'before');
+  addGridAlignedDeltas(afterSegment, 'after');
+
+  if (anchor.type === 'sink' || anchor.type === 'cooktop') {
+    const targetPrepGap = Math.max(drawerWidth, PREP_ZONE_MIN);
+    const secondaryPrepGap = Math.min(PREP_ZONE_MAX, targetPrepGap + 200);
+
+    for (const other of oppositeAnchors) {
+      const currentGap = getAnchorEdgeGap(anchor, other);
+      if (currentGap === SIDE_PANEL_WIDTH) continue;
+      if (currentGap != null && currentGap >= PREP_ZONE_MIN && currentGap <= PREP_ZONE_MAX && currentGap % MODULE_GRID === 0) {
+        continue;
+      }
+
+      if (anchor.position < other.position) {
+        addPosition(other.position - anchor.width - targetPrepGap);
+        addPosition(other.position - anchor.width - secondaryPrepGap);
+      } else {
+        addPosition(other.position + other.width + targetPrepGap);
+        addPosition(other.position + other.width + secondaryPrepGap);
+      }
+    }
+  }
+
+  return [...options.values()].sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta));
+}
+
+function isValidAnchorLayout(
+  wallConfig: WallConfig,
+  effectiveStart: number,
+  effectiveEnd: number,
+  drawerWidth: number,
+): boolean {
+  for (const anchor of wallConfig.anchors) {
+    if (anchor.position < effectiveStart || anchor.position + anchor.width > effectiveEnd) {
+      return false;
+    }
+  }
+
+  const sortedAnchors = [...wallConfig.anchors].sort((a, b) => a.position - b.position);
+  for (let i = 0; i < sortedAnchors.length - 1; i++) {
+    if (sortedAnchors[i].position + sortedAnchors[i].width > sortedAnchors[i + 1].position) {
+      return false;
+    }
+  }
+
+  const segments = segmentWall(wallConfig, {
+    startOffset: effectiveStart,
+    endOffset: wallConfig.length - effectiveEnd,
+  });
+  if (segments.some((segment) => segment.width > 0 && segment.isTrim)) {
+    return false;
+  }
+
+  for (let i = 0; i < sortedAnchors.length; i++) {
+    for (let j = i + 1; j < sortedAnchors.length; j++) {
+      const left = sortedAnchors[i];
+      const right = sortedAnchors[j];
+      if (left.type !== 'sink' && left.type !== 'cooktop') continue;
+      if (right.type !== 'sink' && right.type !== 'cooktop') continue;
+      if (left.type === right.type) continue;
+
+      const gap = getAnchorEdgeGap(left, right);
+      if (gap == null) continue;
+      if (gap < drawerWidth && gap !== SIDE_PANEL_WIDTH) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function generateShiftedWallConfigs(
+  original: WallConfig,
+  effectiveStart: number,
+  effectiveEnd: number,
+  drawerWidth: number,
+): ShiftedWallConfig[] {
+  const optionSets = original.anchors.map((anchor, idx) => {
+    if (anchor.type !== 'sink' && anchor.type !== 'cooktop') {
+      return [{ position: anchor.position, delta: 0 }];
+    }
+    return collectAnchorPositionOptions(original, idx, effectiveStart, effectiveEnd, drawerWidth);
+  });
+
+  const candidates = cappedCartesian(optionSets, MAX_SHIFT_COMBINATIONS)
+    .map((combo) => {
+      const anchors = original.anchors.map((anchor, idx) => ({
+        ...anchor,
+        position: combo[idx].position,
+      }));
+      const wallConfig = { ...original, anchors };
+      const shifts = combo.flatMap((option, idx) => {
+        if (option.delta === 0) return [];
+        const anchor = original.anchors[idx];
+        return [{
+          anchorType: anchor.type,
+          originalPosition: anchor.position,
+          newPosition: option.position,
+          delta: option.delta,
+        }];
+      });
+
+      return {
+        wallConfig,
+        shifts,
+        heuristic: scoreAnchorConfiguration(wallConfig, effectiveStart, effectiveEnd, drawerWidth),
+      };
+    })
+    .filter((candidate) => candidate.shifts.length > 0)
+    .filter((candidate) => isValidAnchorLayout(candidate.wallConfig, effectiveStart, effectiveEnd, drawerWidth));
+
+  const unique = new Map<string, (typeof candidates)[number]>();
+  for (const candidate of candidates) {
+    const signature = candidate.wallConfig.anchors
+      .map((anchor) => `${anchor.type}:${anchor.position}:${anchor.width}`)
+      .join('|');
+    const existing = unique.get(signature);
+    if (!existing || candidate.heuristic > existing.heuristic) {
+      unique.set(signature, candidate);
+    }
+  }
+
+  return [...unique.values()]
+    .sort((a, b) =>
+      b.heuristic - a.heuristic ||
+      a.shifts.length - b.shifts.length ||
+      a.shifts.reduce((sum, shift) => sum + Math.abs(shift.delta), 0) -
+        b.shifts.reduce((sum, shift) => sum + Math.abs(shift.delta), 0),
+    )
+    .slice(0, MAX_SHIFT_CONFIGS)
+    .map(({ wallConfig, shifts }) => ({ wallConfig, shifts }));
+}
+
+function countFillers(plan: WallPlan): number {
+  return plan.modules.filter((m) => m.type === 'filler' && m.depth === LOWER_DEPTH).length;
+}
+
+function totalFillerWidth(plan: WallPlan): number {
+  return plan.modules
+    .filter((m) => m.type === 'filler' && m.depth === LOWER_DEPTH)
+    .reduce((sum, m) => sum + m.width, 0);
+}
+
+interface SinkAdjacencyPlan {
+  dishwasherX?: number;
+  drawerX?: number;
+}
+
+function overlapsOtherAnchors(
+  wallConfig: WallConfig,
+  sinkAnchor: Anchor,
+  start: number,
+  width: number,
+): boolean {
+  return wallConfig.anchors.some((anchor) => {
+    if (anchor === sinkAnchor) return false;
+    return start < anchor.position + anchor.width && start + width > anchor.position;
+  });
+}
+
+function planSinkAdjacency(
+  wallConfig: WallConfig,
+  sinkAnchor: Anchor,
+  drawerWidth: number,
+  dishwasherWidth?: number,
+): SinkAdjacencyPlan {
+  const sinkStart = sinkAnchor.position;
+  const sinkEnd = sinkAnchor.position + sinkAnchor.width;
+
+  if (dishwasherWidth != null) {
+    const dishwasherX = sinkEnd;
+    const drawerX = dishwasherX + dishwasherWidth;
+    const chainWidth = dishwasherWidth + drawerWidth;
+    const fitsChainAfter = drawerX + drawerWidth <= wallConfig.length
+      && !overlapsOtherAnchors(wallConfig, sinkAnchor, dishwasherX, chainWidth);
+
+    if (fitsChainAfter) {
+      return { dishwasherX, drawerX };
+    }
+  }
+
+  const fitsDrawerAfter = sinkEnd + drawerWidth <= wallConfig.length
+    && !overlapsOtherAnchors(wallConfig, sinkAnchor, sinkEnd, drawerWidth);
+  if (fitsDrawerAfter) {
+    return { drawerX: sinkEnd };
+  }
+
+  const drawerXBefore = sinkStart - drawerWidth;
+  const fitsDrawerBefore = drawerXBefore >= 0
+    && !overlapsOtherAnchors(wallConfig, sinkAnchor, drawerXBefore, drawerWidth);
+  if (fitsDrawerBefore) {
+    return { drawerX: drawerXBefore };
+  }
+
+  return {};
+}
+
+// ── Drawer zone pre-reservation ──────────────────────────────────────────────
+
+/**
+ * Inject virtual anchors for drawer housing zones so segmentWall excludes them.
+ * This prevents the solver from filling the drawer zone with modules that
+ * placeDrawerUnit would later remove, creating unfilled gaps.
+ */
+function reserveDrawerZones(
+  wallConfig: WallConfig,
+  drawerCab: CabinetRead | null,
+  dishwasherCab: CabinetRead | null,
+): WallConfig {
+  if (!drawerCab) return wallConfig;
+  const dw = drawerCab.width;
+  const dishwasherWidth = dishwasherCab?.width;
+  const extraAnchors: Anchor[] = [];
+
+  for (const anchor of wallConfig.anchors) {
+    if (anchor.type !== 'sink') continue;
+    const plan = planSinkAdjacency(wallConfig, anchor, dw, dishwasherWidth);
+
+    if (plan.dishwasherX != null && dishwasherWidth != null) {
+      extraAnchors.push({
+        type: 'oven',
+        position: plan.dishwasherX,
+        width: dishwasherWidth,
+        isVirtual: true,
+        virtualKind: 'reserved',
+      });
+    }
+    if (plan.drawerX != null) {
+      extraAnchors.push({
+        type: 'oven',
+        position: plan.drawerX,
+        width: dw,
+        isVirtual: true,
+        virtualKind: 'reserved',
+      });
+    }
+  }
+
+  if (extraAnchors.length === 0) return wallConfig;
+  return { ...wallConfig, anchors: [...wallConfig.anchors, ...extraAnchors] };
+}
+
+// ── Wall pipeline ────────────────────────────────────────────────────────────
+
+function runWallPipeline(
   wallConfig: WallConfig,
   ctx: PlannerContext,
   cornerOffset: { startOffset?: number; endOffset?: number } | undefined,
   tallConfig: TallConfig,
   input: PlannerInput,
 ): WallPlan[] {
+  const reservedOffset = mergeWallOffsets(cornerOffset, {
+    startOffset: tallConfig.startOffset,
+    endOffset: tallConfig.endOffset,
+  });
+
   // Reserve space for fridge + penal
   let fridgeReserve = 0;
   let penalReserve = 0;
   if (tallConfig.fridgeCab) {
-    const cornerStart = cornerOffset?.startOffset ?? 0;
-    const cornerEnd = cornerOffset?.endOffset ?? 0;
+    const cornerStart = reservedOffset?.startOffset ?? 0;
+    const cornerEnd = reservedOffset?.endOffset ?? 0;
     const effectiveLength = wallConfig.length - cornerStart - cornerEnd;
     const tallZone = Math.max(0, effectiveLength - MAX_COUNTERTOP);
 
@@ -1164,10 +1689,18 @@ export function processWall(
 
   const segOffset = totalTallReserve > 0
     ? tallConfig.fridgeSide === 'left'
-      ? { startOffset: (cornerOffset?.startOffset ?? 0) + totalTallReserve, endOffset: cornerOffset?.endOffset }
-      : { startOffset: cornerOffset?.startOffset, endOffset: (cornerOffset?.endOffset ?? 0) + totalTallReserve }
-    : cornerOffset;
-  const segments = segmentWall(wallConfig, segOffset);
+      ? {
+        startOffset: (reservedOffset?.startOffset ?? 0) + totalTallReserve,
+        endOffset: reservedOffset?.endOffset,
+      }
+      : {
+        startOffset: reservedOffset?.startOffset,
+        endOffset: (reservedOffset?.endOffset ?? 0) + totalTallReserve,
+      }
+    : reservedOffset;
+  // Pre-reserve drawer housing zones so solver doesn't fill them
+  const wallConfigForSegmenting = reserveDrawerZones(wallConfig, ctx.drawerUnitCab, ctx.dishwasherCab);
+  const segments = segmentWall(wallConfigForSegmenting, segOffset);
 
   // Solve lower cabinets
   const segmentSolutions = segments.map((seg) =>
@@ -1195,6 +1728,12 @@ export function processWall(
     }
   }
 
+  if (ctx.dishwasherCab) {
+    for (const variant of wallVariants) {
+      placeDishwasherAdjacentToSink(variant, wallConfig, ctx.dishwasherCab, ctx.drawerUnitCab);
+    }
+  }
+
   if (input.useSidePanel200 && ctx.sidePanelCab) {
     for (const variant of wallVariants) {
       autoPlaceSidePanelInGap(variant, wallConfig, ctx.sidePanelCab);
@@ -1210,7 +1749,15 @@ export function processWall(
   // Place fridge/penal on this wall if configured
   if (tallConfig.fridgeCab) {
     for (const variant of wallVariants) {
-      placeTallAppliances(variant, tallConfig.fridgeCab, tallConfig.penalCab, penalReserve, tallConfig.fridgeSide, wallConfig.length, cornerOffset);
+      placeTallAppliances(
+        variant,
+        tallConfig.fridgeCab,
+        tallConfig.penalCab,
+        penalReserve,
+        tallConfig.fridgeSide,
+        wallConfig.length,
+        reservedOffset,
+      );
     }
   }
 
@@ -1218,12 +1765,13 @@ export function processWall(
   const expanded: WallPlan[] = [];
   for (const variant of wallVariants) {
     const upperSolutions = solveUppersAlignedToLowers(
-      variant, wallConfig, ctx.solverModules, ctx.maps.byId, cornerOffset, input.useHood,
+      variant, wallConfig, input.modules, ctx.maps.byId, cornerOffset, input.useHood,
     );
     for (const upperMods of upperSolutions) {
       expanded.push({
         wallId: variant.wallId,
         modules: [...variant.modules, ...upperMods],
+        anchors: variant.anchors?.map((anchor) => ({ ...anchor })),
       });
       if (expanded.length >= 20) break;
     }
@@ -1250,20 +1798,113 @@ export function processWall(
   return expanded;
 }
 
+function wallVariantSignature(wallPlan: WallPlan): string {
+  const anchorsSig = (wallPlan.anchors ?? [])
+    .map((anchor) => `${anchor.type}:${anchor.position}:${anchor.width}`)
+    .join('|');
+  const modulesSig = [...wallPlan.modules]
+    .sort((a, b) => a.x - b.x || a.width - b.width || a.article.localeCompare(b.article))
+    .map((module) => `${module.type}:${module.x}:${module.width}:${module.article}`)
+    .join('|');
+
+  return `${wallPlan.wallId}::${anchorsSig}::${modulesSig}`;
+}
+
+export function processWall(
+  wallConfig: WallConfig,
+  ctx: PlannerContext,
+  cornerOffset: { startOffset?: number; endOffset?: number } | undefined,
+  tallConfig: TallConfig,
+  input: PlannerInput,
+): WallPlan[] {
+  const originalVariants = runWallPipeline(wallConfig, ctx, cornerOffset, tallConfig, input);
+  const collectedVariants: WallPlan[] = [...originalVariants];
+  const reservedOffset = mergeWallOffsets(cornerOffset, {
+    startOffset: tallConfig.startOffset,
+    endOffset: tallConfig.endOffset,
+  });
+
+  // Calculate effective countertop zone (excludes corner + fridge/penal reserves)
+  let tallReserve = 0;
+  if (tallConfig.fridgeCab) {
+    tallReserve = tallConfig.fridgeCab.width;
+    const cornerStart = reservedOffset?.startOffset ?? 0;
+    const cornerEnd = reservedOffset?.endOffset ?? 0;
+    const effectiveLength = wallConfig.length - cornerStart - cornerEnd;
+    const tallZone = Math.max(0, effectiveLength - MAX_COUNTERTOP);
+    if (tallZone >= tallConfig.fridgeCab.width + (tallConfig.penalCab?.width ?? 0) && tallConfig.penalCab) {
+      tallReserve += tallConfig.penalCab.width;
+    }
+  }
+  const effectiveStart = tallConfig.fridgeSide === 'left'
+    ? (reservedOffset?.startOffset ?? 0) + tallReserve
+    : (reservedOffset?.startOffset ?? 0);
+  const effectiveEnd = tallConfig.fridgeSide === 'right'
+    ? wallConfig.length - (reservedOffset?.endOffset ?? 0) - tallReserve
+    : wallConfig.length - (reservedOffset?.endOffset ?? 0);
+
+  const shifted = generateShiftedWallConfigs(
+    wallConfig,
+    effectiveStart,
+    effectiveEnd,
+    ctx.drawerUnitCab?.width ?? input.drawerHousingWidth,
+  );
+
+  for (const { wallConfig: shiftedWall, shifts } of shifted) {
+    const shiftedVariants = runWallPipeline(shiftedWall, ctx, cornerOffset, tallConfig, input);
+    for (const v of shiftedVariants.slice(0, MAX_SHIFTED_PIPELINE_VARIANTS)) {
+      v.anchorShifts = shifts;
+      collectedVariants.push(v);
+    }
+  }
+
+  const unique = new Map<string, WallPlan>();
+  for (const variant of collectedVariants) {
+    const signature = wallVariantSignature(variant);
+    if (!unique.has(signature)) {
+      unique.set(signature, variant);
+    }
+  }
+
+  const deduped = [...unique.values()];
+  const originalOnly = deduped.filter((variant) => !variant.anchorShifts || variant.anchorShifts.length === 0);
+  const shiftedOnly = deduped.filter((variant) => (variant.anchorShifts?.length ?? 0) > 0);
+
+  return [
+    ...originalOnly.slice(0, 12),
+    ...shiftedOnly.slice(0, 8),
+    ...originalOnly.slice(12),
+    ...shiftedOnly.slice(8),
+  ].slice(0, 20);
+}
+
 export function placeCorners(
   corners: CornerJunction[],
   modules: CabinetRead[],
+  options?: {
+    lowerCornerCabinetId?: number | null;
+    upperCornerCabinetId?: number | null;
+  },
 ): { cornerModules: PlacedModule[]; cornerOffsets: Map<string, { startOffset?: number; endOffset?: number }> } {
-  const cornerCabinets = modules.filter((m) => m.is_corner);
+  const lowerCornerCabinets = modules.filter((m) => m.is_corner && m.type === CabinetType.LOWER);
+  const upperCornerCabinets = modules.filter((m) => m.is_corner && m.type === CabinetType.UPPER);
   const cornerModules: PlacedModule[] = [];
   const cornerOffsets: Map<string, { startOffset?: number; endOffset?: number }> = new Map();
 
   for (let ci = 0; ci < corners.length; ci++) {
     const junction = corners[ci];
-    const cornerModule = selectCornerCabinet(cornerCabinets, junction.id, ci);
+    const lowerCornerModule = selectCornerCabinet(lowerCornerCabinets, junction.id, {
+      cabinetId: options?.lowerCornerCabinetId,
+      index: ci,
+    });
+    const upperCornerModule = selectCornerCabinet(upperCornerCabinets, junction.id, {
+      cabinetId: options?.upperCornerCabinetId,
+      index: ci,
+      yOffset: UPPER_Y,
+    });
 
     // Reserve corner space on both walls even if no corner cabinet in catalog
-    const occupancy = cornerModule?.width || CORNER_WALL_OCCUPANCY;
+    const occupancy = lowerCornerModule?.width || CORNER_WALL_OCCUPANCY;
 
     for (const side of [junction.wallA, junction.wallB] as const) {
       const existing = cornerOffsets.get(side.wallId) ?? {};
@@ -1275,8 +1916,11 @@ export function placeCorners(
       cornerOffsets.set(side.wallId, existing);
     }
 
-    if (cornerModule) {
-      cornerModules.push(cornerModule);
+    if (lowerCornerModule) {
+      cornerModules.push(lowerCornerModule);
+    }
+    if (upperCornerModule) {
+      cornerModules.push(upperCornerModule);
     }
   }
 
@@ -1290,27 +1934,34 @@ export function combineAndScore(
 ): SolverVariant[] {
   const kitchenCombos = cappedCartesian(wallVariantSets, MAX_VARIANTS * 3);
 
-  const scoringContext: ScoringContext = {
+  const baseScoringContext: Omit<ScoringContext, 'anchors'> = {
     roomWidth: input.roomWidth,
     roomDepth: input.roomDepth,
     wallHeight: input.wallHeight,
     layoutType: input.layoutType,
-    anchors: input.walls.flatMap((w) =>
-      w.anchors.map((a) => ({
-        wallId: w.id,
-        type: a.type,
-        position: a.position,
-        width: a.width,
-      })),
-    ),
   };
 
   const scoredPlans: KitchenPlan[] = kitchenCombos.map((walls) => {
+    const allShifts = walls.flatMap((w) => w.anchorShifts ?? []);
+    const scoringContext: ScoringContext = {
+      ...baseScoringContext,
+      anchors: walls.flatMap((wall) =>
+        (wall.anchors ?? [])
+          .filter((anchor) => !anchor.isVirtual)
+          .map((anchor) => ({
+            wallId: wall.wallId,
+            type: anchor.type,
+            position: anchor.position,
+            width: anchor.width,
+          })),
+      ),
+    };
     const plan: KitchenPlan = {
       walls,
       cornerModules,
       score: 0,
       scoreBreakdown: { ...EMPTY_SCORE_BREAKDOWN },
+      anchorShifts: allShifts.length > 0 ? allShifts : undefined,
     };
 
     const result = scorePlan(plan, scoringContext);

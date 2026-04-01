@@ -46,6 +46,8 @@ export interface SerializablePlannerState {
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
   fridgeSide: 'left' | 'right';
+  selectedLowerCornerCabinetId: number | null;
+  selectedUpperCornerCabinetId: number | null;
   countertopColor: string | null;
   countertopTextureUrl: string | null;
   facadeColor: string | null;
@@ -75,6 +77,8 @@ interface SerializedWorkspaceContent {
   sinkModuleWidth: 600 | 800;
   drawerHousingWidth: 400 | 600;
   fridgeSide: 'left' | 'right';
+  selectedLowerCornerCabinetId: number | null;
+  selectedUpperCornerCabinetId: number | null;
   countertopColor: string | null;
   countertopTextureUrl: string | null;
   facadeColor: string | null;
@@ -104,6 +108,8 @@ const DEFAULTS: SerializablePlannerState = {
   sinkModuleWidth: 600,
   drawerHousingWidth: 400,
   fridgeSide: 'right',
+  selectedLowerCornerCabinetId: null,
+  selectedUpperCornerCabinetId: null,
   countertopColor: null,
   countertopTextureUrl: null,
   facadeColor: null,
@@ -144,6 +150,8 @@ export function serializeState(
     sinkModuleWidth: state.sinkModuleWidth,
     drawerHousingWidth: state.drawerHousingWidth,
     fridgeSide: state.fridgeSide,
+    selectedLowerCornerCabinetId: state.selectedLowerCornerCabinetId,
+    selectedUpperCornerCabinetId: state.selectedUpperCornerCabinetId,
     countertopColor: state.countertopColor,
     countertopTextureUrl: state.countertopTextureUrl,
     facadeColor: state.facadeColor,
@@ -334,6 +342,16 @@ export function deserializeState(
     content.fridgeSide === 'left' || content.fridgeSide === 'right'
       ? content.fridgeSide
       : DEFAULTS.fridgeSide;
+
+  result.selectedLowerCornerCabinetId =
+    content.selectedLowerCornerCabinetId === null || isNumber(content.selectedLowerCornerCabinetId)
+      ? (content.selectedLowerCornerCabinetId as number | null)
+      : DEFAULTS.selectedLowerCornerCabinetId;
+
+  result.selectedUpperCornerCabinetId =
+    content.selectedUpperCornerCabinetId === null || isNumber(content.selectedUpperCornerCabinetId)
+      ? (content.selectedUpperCornerCabinetId as number | null)
+      : DEFAULTS.selectedUpperCornerCabinetId;
 
   // Countertop customization
   result.countertopColor = typeof content.countertopColor === 'string'

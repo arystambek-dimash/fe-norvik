@@ -62,6 +62,7 @@ export default function WorkspaceEditorPage() {
   const setVariants = usePlannerStore((s) => s.setVariants);
   const modules = usePlannerStore((s) => s.modules);
   const lShapedSide = usePlannerStore((s) => s.lShapedSide);
+  const sideWallWidth = usePlannerStore((s) => s.sideWallWidth);
   const fridgeSide = usePlannerStore((s) => s.fridgeSide);
   const useInbuiltStove = usePlannerStore((s) => s.useInbuiltStove);
   const selectedStoveId = usePlannerStore((s) => s.selectedStoveId);
@@ -108,6 +109,10 @@ export default function WorkspaceEditorPage() {
         store.setDrawerHousingWidth(restored.drawerHousingWidth);
       if (restored.fridgeSide !== undefined)
         store.setFridgeSide(restored.fridgeSide);
+      if (restored.selectedLowerCornerCabinetId !== undefined)
+        store.setSelectedLowerCornerCabinetId(restored.selectedLowerCornerCabinetId);
+      if (restored.selectedUpperCornerCabinetId !== undefined)
+        store.setSelectedUpperCornerCabinetId(restored.selectedUpperCornerCabinetId);
       if (restored.useInbuiltStove !== undefined)
         store.setUseInbuiltStove(restored.useInbuiltStove);
       if (restored.selectedStoveId !== undefined)
@@ -175,6 +180,8 @@ export default function WorkspaceEditorPage() {
       sinkModuleWidth: state.sinkModuleWidth,
       drawerHousingWidth: state.drawerHousingWidth,
       fridgeSide: state.fridgeSide,
+      selectedLowerCornerCabinetId: state.selectedLowerCornerCabinetId,
+      selectedUpperCornerCabinetId: state.selectedUpperCornerCabinetId,
       countertopColor: state.countertopColor,
       countertopTextureUrl: state.countertopTextureUrl,
       facadeColor: state.facadeColor,
@@ -201,6 +208,7 @@ export default function WorkspaceEditorPage() {
           roomDepth: state.roomDepth,
           wallHeight: state.wallHeight,
           layoutType: state.layoutType,
+          lShapedSide: state.lShapedSide,
           walls: state.walls.map((w) => ({ ...w, anchors: [] })),
           anchors: anchorsMap,
           availableCabinets: state.modules,
@@ -213,6 +221,8 @@ export default function WorkspaceEditorPage() {
           sinkModuleWidth: state.sinkModuleWidth,
           drawerHousingWidth: state.drawerHousingWidth,
           fridgeSide: state.fridgeSide,
+          selectedLowerCornerCabinetId: state.selectedLowerCornerCabinetId,
+          selectedUpperCornerCabinetId: state.selectedUpperCornerCabinetId,
         };
 
         const input = deriveInput(storeState);
@@ -239,24 +249,27 @@ export default function WorkspaceEditorPage() {
   }, [variants, selectedVariantIndex]);
 
   const roomConfig = useMemo(
-    () => ({ roomWidth, roomDepth, wallHeight, lShapedSide }),
-    [roomWidth, roomDepth, wallHeight, lShapedSide],
+    () => ({ roomWidth, roomDepth, wallHeight, lShapedSide, sideWallWidth }),
+    [roomWidth, roomDepth, wallHeight, lShapedSide, sideWallWidth],
   );
 
   const wallAnchors: WallAnchors[] = useMemo(() => {
     const glbByKind = buildAnchorGlbByKindMap(modules, useInbuiltStove, selectedStoveId);
+    const planAnchorsByWallId = new Map(
+      activePlan?.walls.map((wall) => [wall.wallId, wall.anchors ?? []]) ?? [],
+    );
 
-    // Anchor positions are absolute wall coordinates — no shift needed.
-    // Auto-snap in walls-step ensures they don't overlap with fridge/penal zone.
     return walls.map((w) => ({
       wallId: w.id,
-      anchors: w.anchors.map((a) => {
+      anchors: (planAnchorsByWallId.get(w.id) ?? w.anchors)
+        .filter((a) => !a.isVirtual)
+        .map((a) => {
         if (a.glbFile) return a;
         const glb = glbByKind.get(ANCHOR_TO_KIND[a.type]);
         return glb ? { ...a, glbFile: glb } : a;
       }),
     }));
-  }, [walls, modules, useInbuiltStove, selectedStoveId]);
+  }, [walls, activePlan, modules, useInbuiltStove, selectedStoveId]);
 
   const handleSelectCountertop = useCallback(() => {
     setCountertopSelected(true);

@@ -24,6 +24,8 @@ export interface Anchor {
   position: number; // mm from wall start
   width: number;    // mm
   glbFile?: string | null; // GLB 3D model URL from cabinet record
+  isVirtual?: boolean;
+  virtualKind?: 'corner' | 'reserved';
 }
 
 export interface WallConfig {
@@ -58,16 +60,26 @@ export interface PlacedModule {
   glbFile?: string | null; // GLB 3D model URL from cabinet record
 }
 
+export interface AnchorShift {
+  anchorType: 'sink' | 'cooktop' | 'oven';
+  originalPosition: number;
+  newPosition: number;
+  delta: number;
+}
+
 export interface KitchenPlan {
   walls: WallPlan[];
   cornerModules: PlacedModule[]; // corner cabinets placed at wall junctions
   score: number;
   scoreBreakdown: ScoreBreakdown;
+  anchorShifts?: AnchorShift[];
 }
 
 export interface WallPlan {
   wallId: string;
   modules: PlacedModule[];
+  anchors?: Anchor[];
+  anchorShifts?: AnchorShift[];
 }
 
 export interface SolverVariant {
@@ -98,6 +110,8 @@ export interface PlannerInput {
   fridgeSide: 'left' | 'right';
   useInbuiltStove: boolean;
   selectedStoveId: number | null;
+  selectedLowerCornerCabinetId: number | null;
+  selectedUpperCornerCabinetId: number | null;
 }
 
 export interface ScoringResult {

@@ -48,8 +48,7 @@ export default function ModulePanel({ onColorChange }: ModulePanelProps) {
   // Find the selected module across all walls of the active variant
   const activeVariant = variants[selectedVariantIndex];
   const selectedModule: PlacedModule | undefined = activeVariant
-    ? activeVariant.plan.walls
-        .flatMap((w) => w.modules)
+    ? [...activeVariant.plan.walls.flatMap((w) => w.modules), ...activeVariant.plan.cornerModules]
         .find((m) => m.id === selectedModuleId)
     : undefined;
 
