@@ -2,10 +2,10 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY /norvik/package*.json ./
+COPY ./norvik/package*.json ./
 RUN npm ci
 
-COPY . .
+COPY ./norvik .
 RUN npm run build
 
 FROM nginx:alpine
