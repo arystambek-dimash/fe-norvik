@@ -14,11 +14,11 @@ interface VariantPanelProps {
 type CategoryKey = keyof typeof CATEGORY_WEIGHTS;
 
 const CATEGORY_LABELS: { key: CategoryKey; label: string }[] = [
-  { key: "ergonomics", label: "Ergonomics" },
-  { key: "workflow", label: "Workflow" },
-  { key: "aesthetics", label: "Aesthetics" },
-  { key: "manufacturability", label: "Manufacturability" },
-  { key: "preferences", label: "Preferences" },
+  { key: "ergonomics", label: "Эргономика" },
+  { key: "workflow", label: "Рабочий процесс" },
+  { key: "aesthetics", label: "Эстетика" },
+  { key: "manufacturability", label: "Технологичность" },
+  { key: "preferences", label: "Предпочтения" },
 ];
 
 function CategoryRow({ label, weightPct, detail }: { label: string; weightPct: number; detail: CategoryDetail }) {
@@ -54,7 +54,7 @@ function ScoreBreakdownView({ breakdown }: { breakdown: ScoreBreakdown }) {
     <div className="mt-2 space-y-1.5 border-t border-border/40 pt-2">
       {!breakdown.hardConstraintsPassed && (
         <div className="text-xs text-destructive font-medium">
-          Hard constraints violated
+          Нарушены жёсткие ограничения
         </div>
       )}
       {CATEGORY_LABELS.map(({ key, label }) => (
@@ -100,19 +100,19 @@ function VariantCard({
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">
             {variant.rank}
           </span>
-          <span className="text-sm font-medium">Variant {variant.rank}</span>
+          <span className="text-sm font-medium">Вариант {variant.rank}</span>
         </div>
         <Badge variant="secondary" className="font-mono text-xs">
-          Score: {Math.round(variant.plan.score)}
+          Оценка: {Math.round(variant.plan.score)}
         </Badge>
       </div>
 
       <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Layers className="size-3" />
-          {totalModules} modules
+          {totalModules} модулей
         </span>
-        <span>{variant.plan.walls.length} wall{variant.plan.walls.length !== 1 ? "s" : ""}</span>
+        <span>{variant.plan.walls.length} стен</span>
       </div>
 
       {variant.plan.anchorShifts && variant.plan.anchorShifts.length > 0 && (
@@ -137,7 +137,7 @@ function VariantCard({
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
-          Score breakdown
+          Детализация оценки
         </button>
         {expanded && <ScoreBreakdownView breakdown={variant.plan.scoreBreakdown} />}
       </div>
@@ -155,7 +155,7 @@ export default function VariantPanel({ onRegenerate }: VariantPanelProps) {
       <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 p-4 text-center">
         <Layers className="size-8 text-muted-foreground/50" />
         <p className="text-sm text-muted-foreground">
-          No variants generated yet. Complete the wizard to generate plans.
+          Варианты ещё не сгенерированы. Завершите мастер настройки для генерации планов.
         </p>
       </div>
     );
@@ -163,7 +163,7 @@ export default function VariantPanel({ onRegenerate }: VariantPanelProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold tracking-tight font-display">Generated Variants</h3>
+      <h3 className="text-sm font-semibold tracking-tight font-display">Сгенерированные варианты</h3>
 
       <div className="flex max-h-[480px] flex-col gap-2 overflow-y-auto pr-1">
         {variants.map((variant, index) => (
@@ -183,7 +183,7 @@ export default function VariantPanel({ onRegenerate }: VariantPanelProps) {
         onClick={onRegenerate}
       >
         <RefreshCw className="mr-2 size-4" />
-        Regenerate
+        Перегенерировать
       </Button>
     </div>
   );

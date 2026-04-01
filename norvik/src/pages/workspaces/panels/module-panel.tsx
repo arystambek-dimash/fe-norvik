@@ -23,15 +23,15 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 function typeLabel(type: PlacedModule["type"]): string {
   switch (type) {
     case "lower":
-      return "Lower Cabinet";
+      return "Нижний шкаф";
     case "upper":
-      return "Upper Cabinet";
+      return "Верхний шкаф";
     case "tall":
-      return "Tall Cabinet";
+      return "Высокий шкаф";
     case "filler":
-      return "Filler";
+      return "Заполнитель";
     case "corner":
-      return "Corner Cabinet";
+      return "Угловой шкаф";
     default:
       return type;
   }
@@ -62,7 +62,7 @@ export default function ModulePanel({ onColorChange }: ModulePanelProps) {
       <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 p-4 text-center">
         <Box className="size-8 text-muted-foreground/50" />
         <p className="text-sm text-muted-foreground">
-          Click a module in the 3D viewer to inspect it
+          Нажмите на модуль в 3D-просмотрщике для детального просмотра
         </p>
       </div>
     );
@@ -76,7 +76,7 @@ export default function ModulePanel({ onColorChange }: ModulePanelProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold tracking-tight font-display">Module Inspector</h3>
+        <h3 className="text-sm font-semibold tracking-tight font-display">Инспектор модулей</h3>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -95,20 +95,20 @@ export default function ModulePanel({ onColorChange }: ModulePanelProps) {
           </Badge>
         </div>
 
-        <InfoRow label="Module ID" value={<span className="font-mono text-xs">{selectedModule.id}</span>} />
-        <InfoRow label="Cabinet ID" value={selectedModule.cabinetId} />
+        <InfoRow label="ID модуля" value={<span className="font-mono text-xs">{selectedModule.id}</span>} />
+        <InfoRow label="ID шкафа" value={selectedModule.cabinetId} />
         <InfoRow
-          label="Dimensions"
-          value={`${selectedModule.width} x ${selectedModule.height} x ${selectedModule.depth} mm`}
+          label="Размеры"
+          value={`${selectedModule.width} x ${selectedModule.height} x ${selectedModule.depth} мм`}
         />
-        <InfoRow label="Wall" value={selectedModule.wallId} />
-        <InfoRow label="X Offset" value={`${selectedModule.x} mm`} />
+        <InfoRow label="Стена" value={selectedModule.wallId} />
+        <InfoRow label="Смещение X" value={`${selectedModule.x} мм`} />
       </div>
 
       <div className="rounded-xl border border-border/60 p-3">
         <div className="flex items-center gap-2 mb-2">
           <Palette className="size-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Module Color</span>
+          <span className="text-xs font-medium">Цвет модуля</span>
         </div>
         <div className="flex items-center gap-3">
           <Input
@@ -133,7 +133,7 @@ export default function ModulePanel({ onColorChange }: ModulePanelProps) {
         onClick={() => setSelectedModuleId(null)}
       >
         <X className="mr-2 size-4" />
-        Deselect
+        Снять выделение
       </Button>
     </div>
   );
