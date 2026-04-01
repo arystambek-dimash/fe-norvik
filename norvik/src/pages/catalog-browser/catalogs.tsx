@@ -15,7 +15,7 @@ export default function CatalogsPage() {
   return (
     <div className="space-y-8">
       <div className="animate-fade-up">
-        <PageHeader title="Product Catalogs" description="Browse our curated collections of premium kitchen cabinets" />
+        <PageHeader title="Каталоги продукции" description="Просматривайте подобранные коллекции кухонных шкафов премиум-класса" />
       </div>
 
       {isLoading ? (
@@ -26,7 +26,7 @@ export default function CatalogsPage() {
         </div>
       ) : catalogs?.length === 0 ? (
         <div className="flex h-52 items-center justify-center rounded-xl border border-dashed border-border/60">
-          <p className="text-muted-foreground">No catalogs available</p>
+          <p className="text-muted-foreground">Каталоги отсутствуют</p>
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

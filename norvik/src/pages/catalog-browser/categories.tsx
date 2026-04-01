@@ -33,14 +33,14 @@ function getCabinetBrowserColumns(
   return [
     {
       accessorKey: "article",
-      header: "Article",
+      header: "Артикул",
       cell: ({ row }) => (
         <span className="font-medium">{row.original.article}</span>
       ),
     },
     {
       accessorKey: "kind",
-      header: "Kind",
+      header: "Вид",
       cell: ({ row }) => (
         <Badge variant="secondary" className="rounded-md">
           {capitalize(row.original.kind)}
@@ -49,7 +49,7 @@ function getCabinetBrowserColumns(
     },
     {
       accessorKey: "type",
-      header: "Type",
+      header: "Тип",
       cell: ({ row }) => (
         <Badge variant="outline" className="rounded-md">
           {capitalize(row.original.type)}
@@ -58,7 +58,7 @@ function getCabinetBrowserColumns(
     },
     {
       accessorKey: "subtype",
-      header: "Subtype",
+      header: "Подтип",
       cell: ({ row }) => (
         <span className="text-muted-foreground">
           {capitalize(row.original.subtype)}
@@ -67,7 +67,7 @@ function getCabinetBrowserColumns(
     },
     {
       id: "dimensions",
-      header: "Dimensions",
+      header: "Размеры",
       cell: ({ row }) => (
         <span className="text-sm">
           {row.original.width} x {row.original.height} x {row.original.depth} mm
@@ -76,25 +76,25 @@ function getCabinetBrowserColumns(
     },
     {
       accessorKey: "price",
-      header: "Price",
+      header: "Цена",
       cell: ({ row }) => (
         <span className="font-medium">${row.original.price}</span>
       ),
     },
     {
       accessorKey: "inbuilt",
-      header: "Inbuilt",
+      header: "Встроенный",
       cell: ({ row }) =>
         row.original.inbuilt ? (
-          <Badge className="rounded-md">Yes</Badge>
+          <Badge className="rounded-md">Да</Badge>
         ) : (
-          <span className="text-muted-foreground">No</span>
+          <span className="text-muted-foreground">Нет</span>
         ),
     },
     createActionsColumn<CabinetRead>({
       extraActions: [
         {
-          label: "Preview",
+          label: "Предпросмотр",
           icon: <Eye className="mr-2 h-4 w-4" />,
           onClick: onPreview,
         },
@@ -176,8 +176,8 @@ export default function CategoriesPage() {
           </Button>
         </Link>
         <PageHeader
-          title={catalog?.name ?? "Catalog"}
-          description="Browse categories and cabinets"
+          title={catalog?.name ?? "Каталог"}
+          description="Просмотр категорий и шкафов"
         />
       </div>
 
@@ -198,9 +198,9 @@ export default function CategoriesPage() {
         <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border/60 animate-fade-up" style={{ animationDelay: "80ms" }}>
           <div className="text-center">
             <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground/25" />
-            <p className="mt-3 text-muted-foreground">No categories in this catalog</p>
+            <p className="mt-3 text-muted-foreground">В этом каталоге нет категорий</p>
             <p className="mt-1 text-sm text-muted-foreground/60">
-              Categories and cabinets will appear here once added by an administrator
+              Категории и шкафы появятся здесь после добавления администратором
             </p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export default function CategoriesPage() {
           {/* Categories sidebar */}
           <div className="w-56 shrink-0">
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-              Categories
+              Категории
             </p>
             <nav className="space-y-1">
               {categories.map((category) => (
@@ -235,11 +235,11 @@ export default function CategoriesPage() {
             <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border/60 bg-card p-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                  Kind
+                  Вид
                 </Label>
                 <Select value={kind} onValueChange={setKind}>
                   <SelectTrigger className="w-36 rounded-lg">
-                    <SelectValue placeholder="All kinds" />
+                    <SelectValue placeholder="Все виды" />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.values(CabinetKind).map((k) => (
@@ -253,11 +253,11 @@ export default function CategoriesPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                  Type
+                  Тип
                 </Label>
                 <Select value={type} onValueChange={setType}>
                   <SelectTrigger className="w-36 rounded-lg">
-                    <SelectValue placeholder="All types" />
+                    <SelectValue placeholder="Все типы" />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.values(CabinetType).map((t) => (
@@ -276,7 +276,7 @@ export default function CategoriesPage() {
                     setInbuilt(checked ? true : undefined)
                   }
                 />
-                <Label className="text-sm">Inbuilt only</Label>
+                <Label className="text-sm">Только встроенные</Label>
               </div>
 
               {hasFilters && (
@@ -287,7 +287,7 @@ export default function CategoriesPage() {
                   onClick={clearFilters}
                 >
                   <X className="mr-1 h-4 w-4" />
-                  Clear
+                  Сбросить
                 </Button>
               )}
             </div>
