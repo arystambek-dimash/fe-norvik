@@ -101,7 +101,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  No results found.
+                  Ничего не найдено.
                 </TableCell>
               </TableRow>
             )}
@@ -112,7 +112,7 @@ export function DataTable<TData, TValue>({
       {pagination && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {pagination.offset + 1}–{pagination.offset + data.length} items
+            Показано {pagination.offset + 1}–{pagination.offset + data.length} записей
           </p>
           <div className="flex gap-2">
             <Button
@@ -123,7 +123,7 @@ export function DataTable<TData, TValue>({
               disabled={pagination.offset === 0}
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
-              Previous
+              Назад
             </Button>
             <Button
               variant="outline"
@@ -132,7 +132,7 @@ export function DataTable<TData, TValue>({
               onClick={pagination.onNext}
               disabled={pagination.hasMore === false || data.length < pagination.limit}
             >
-              Next
+              Вперёд
               <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>

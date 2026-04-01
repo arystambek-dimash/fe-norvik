@@ -27,7 +27,7 @@ export function CrudDialog({
   children,
   onSubmit,
   isLoading = false,
-  submitLabel = "Save",
+  submitLabel = "Сохранить",
 }: CrudDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -40,10 +40,10 @@ export function CrudDialog({
           <div className="space-y-4 py-4">{children}</div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-              Cancel
+              Отмена
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Saving..." : submitLabel}
+              {isLoading ? "Сохранение..." : submitLabel}
             </Button>
           </DialogFooter>
         </form>

@@ -23,8 +23,8 @@ export function DeleteDialog({
   open,
   onOpenChange,
   onConfirm,
-  title = "Are you sure?",
-  description = "This action cannot be undone.",
+  title = "Вы уверены?",
+  description = "Это действие нельзя отменить.",
   isLoading = false,
   showHardDelete = false,
 }: DeleteDialogProps) {
@@ -42,7 +42,7 @@ export function DeleteDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {showHardDelete && hard
-              ? "This will permanently delete all data and files. This action cannot be undone."
+              ? "Все данные и файлы будут удалены безвозвратно. Это действие нельзя отменить."
               : description}
           </DialogDescription>
         </DialogHeader>
@@ -54,15 +54,15 @@ export function DeleteDialog({
               onChange={(e) => setHard(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300"
             />
-            <span>Delete permanently (removes all data and files from storage)</span>
+            <span>Удалить навсегда (удаляет все данные и файлы из хранилища)</span>
           </label>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isLoading}>
-            Cancel
+            Отмена
           </Button>
           <Button variant="destructive" onClick={() => onConfirm(hard)} disabled={isLoading}>
-            {isLoading ? "Deleting..." : hard ? "Delete permanently" : "Delete"}
+            {isLoading ? "Удаление..." : hard ? "Удалить навсегда" : "Удалить"}
           </Button>
         </DialogFooter>
       </DialogContent>
