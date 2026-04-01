@@ -44,23 +44,22 @@ export function Hero() {
         {/* Pill badge */}
         <div className="animate-fade-up mb-8 inline-flex items-center gap-2 rounded-full border border-brass/30 bg-white/5 px-4 py-1.5 text-xs tracking-wide text-brass backdrop-blur-sm animate-pulse-glow">
           <Sparkles className="h-3.5 w-3.5" />
-          Kitchen Design Reimagined
+          Кухонный дизайн нового уровня
         </div>
 
         {/* Headline */}
         <h1 className="animate-fade-up [animation-delay:100ms] font-display text-5xl leading-tight text-white md:text-7xl md:leading-tight">
-          Design Kitchens
+          Кухни, которые
           <br />
-          That{" "}
           <span className="bg-gradient-to-r from-brass to-yellow-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient">
-            Inspire
+            вдохновляют
           </span>
         </h1>
 
         {/* Subheadline */}
         <p className="animate-fade-up [animation-delay:200ms] mx-auto mt-6 max-w-2xl text-lg text-white/50 md:text-xl">
-          The professional kitchen configurator for studios and designers.
-          Create stunning layouts, browse premium catalogs, and bring your vision to life.
+          Профессиональный конфигуратор кухонь для студий и дизайнеров.
+          Создавайте впечатляющие планировки, изучайте премиальные каталоги и воплощайте свои идеи в жизнь.
         </p>
 
         {/* CTAs */}
@@ -71,7 +70,7 @@ export function Hero() {
             className="bg-gradient-to-r from-brass to-yellow-600 text-espresso font-semibold shadow-[0_0_30px_rgba(180,140,60,0.3)] hover:shadow-[0_0_40px_rgba(180,140,60,0.5)]"
             asChild
           >
-            <Link to={ROUTES.REGISTER}>Start Designing</Link>
+            <Link to={ROUTES.REGISTER}>Начать проектирование</Link>
           </Button>
           <Button
             variant="outline"
@@ -79,7 +78,7 @@ export function Hero() {
             className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
             asChild
           >
-            <a href="#how-it-works">See How It Works</a>
+            <a href="#how-it-works">Как это работает</a>
           </Button>
         </div>
 
@@ -94,7 +93,7 @@ export function Hero() {
                 ))}
               </div>
               <div className="mx-auto text-[11px] text-white/25 tracking-wide">
-                norvik.app — Kitchen Configurator
+                norvik.app — Конфигуратор кухонь
               </div>
               <div className="w-[52px]" />
             </div>

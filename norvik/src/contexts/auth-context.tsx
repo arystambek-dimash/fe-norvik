@@ -31,7 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchCompanies = useCallback(async () => {
     try {
-      const companiesData = await companiesApi.listMyCompanies();
+      const raw = await companiesApi.listMyCompanies();
+      const companiesData = Array.isArray(raw) ? raw : (raw as any).items ?? [];
       setCompanies(companiesData);
       if (!localStorage.getItem("current_company_id") && companiesData.length > 0) {
         const firstId = companiesData[0].company_id;

@@ -86,10 +86,10 @@ function RuleRow({
         <td className="px-2 py-1.5">
           <div className="flex gap-1">
             <Button variant="ghost" size="xs" onClick={onSave}>
-              Save
+              Сохранить
             </Button>
             <Button variant="ghost" size="xs" onClick={onCancel}>
-              Cancel
+              Отмена
             </Button>
           </div>
         </td>
@@ -203,7 +203,7 @@ export default function GoldenTablePanel() {
       >
         <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <Bug className="size-3.5" />
-          Debug: Golden Table
+          Отладка: Золотая таблица
         </span>
         {expanded ? (
           <ChevronUp className="size-3.5 text-muted-foreground" />
@@ -216,16 +216,16 @@ export default function GoldenTablePanel() {
         <div className="border-t border-dashed border-border/40 px-3 pb-3 pt-2">
           {goldenRules.length === 0 ? (
             <p className="py-4 text-center text-xs text-muted-foreground">
-              No golden rules defined.
+              Золотые правила не заданы.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-border/40">
-                    <th className="px-2 py-1 text-xs font-medium text-muted-foreground">Context</th>
-                    <th className="px-2 py-1 text-xs font-medium text-muted-foreground">Width (mm)</th>
-                    <th className="px-2 py-1 text-xs font-medium text-muted-foreground">Articles</th>
+                    <th className="px-2 py-1 text-xs font-medium text-muted-foreground">Контекст</th>
+                    <th className="px-2 py-1 text-xs font-medium text-muted-foreground">Ширина (мм)</th>
+                    <th className="px-2 py-1 text-xs font-medium text-muted-foreground">Артикулы</th>
                     <th className="px-2 py-1 w-16" />
                   </tr>
                 </thead>
@@ -253,7 +253,7 @@ export default function GoldenTablePanel() {
           {adding ? (
             <div className="mt-2 flex items-end gap-2 rounded-lg border border-dashed border-border/40 p-2">
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Context</label>
+                <label className="text-xs text-muted-foreground">Контекст</label>
                 <Select
                   value={newRule.context}
                   onValueChange={(v) => setNewRule((prev) => ({ ...prev, context: v as SegmentContext }))}
@@ -268,7 +268,7 @@ export default function GoldenTablePanel() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Width (mm)</label>
+                <label className="text-xs text-muted-foreground">Ширина (мм)</label>
                 <Input
                   type="number"
                   value={newRule.width}
@@ -278,7 +278,7 @@ export default function GoldenTablePanel() {
                 />
               </div>
               <div className="flex-1 space-y-1">
-                <label className="text-xs text-muted-foreground">Articles</label>
+                <label className="text-xs text-muted-foreground">Артикулы</label>
                 <Input
                   type="text"
                   value={newRule.articles}
@@ -289,10 +289,10 @@ export default function GoldenTablePanel() {
               </div>
               <div className="flex gap-1">
                 <Button variant="ghost" size="xs" onClick={addRule}>
-                  Add
+                  Добавить
                 </Button>
                 <Button variant="ghost" size="xs" onClick={() => setAdding(false)}>
-                  Cancel
+                  Отмена
                 </Button>
               </div>
             </div>
@@ -305,7 +305,7 @@ export default function GoldenTablePanel() {
                 onClick={() => setAdding(true)}
               >
                 <Plus className="mr-1 size-3" />
-                Add Rule
+                Добавить правило
               </Button>
               <Button
                 variant="ghost"
@@ -314,7 +314,7 @@ export default function GoldenTablePanel() {
                 onClick={resetToDefaults}
               >
                 <RotateCcw className="mr-1 size-3" />
-                Reset to Defaults
+                Сбросить по умолчанию
               </Button>
             </div>
           )}

@@ -12,8 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Diamond } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Неверный адрес электронной почты"),
+  password: z.string().min(1, "Введите пароль"),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -36,7 +36,7 @@ export default function LoginPage() {
       await login(data);
       navigate(ROUTES.DASHBOARD);
     } catch (err) {
-      handleApiError(err, "Login failed");
+      handleApiError(err, "Ошибка входа");
     } finally {
       setIsSubmitting(false);
     }
@@ -51,10 +51,10 @@ export default function LoginPage() {
             <Diamond className="h-8 w-8 text-brass" />
           </div>
           <h2 className="text-4xl tracking-tight text-white">
-            Crafting Exceptional Spaces
+            Создаём исключительные пространства
           </h2>
           <p className="text-base leading-relaxed text-white/50">
-            Design, configure, and manage premium kitchen cabinets with precision and elegance.
+            Проектируйте, настраивайте и управляйте кухонными шкафами премиум-класса с точностью и элегантностью.
           </p>
           <div className="mx-auto h-px w-24 bg-white/10" />
           <p className="text-xs uppercase tracking-[0.3em] text-white/25">
@@ -73,30 +73,30 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h1 className="text-3xl tracking-tight">Welcome back</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Sign in to your account to continue</p>
+            <h1 className="text-3xl tracking-tight">С возвращением</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Войдите в свой аккаунт, чтобы продолжить</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Email</Label>
+              <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Электронная почта</Label>
               <Input id="email" type="email" placeholder="you@company.com" className="h-11" {...register("email")} />
               {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Password</Label>
+              <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Пароль</Label>
               <Input id="password" type="password" placeholder="••••••••" className="h-11" {...register("password")} />
               {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
             </div>
             <Button type="submit" className="h-11 w-full text-sm font-semibold tracking-wide" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in..." : "Sign In"}
+              {isSubmitting ? "Вход..." : "Войти"}
             </Button>
           </form>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            Нет аккаунта?{" "}
             <Link to={ROUTES.REGISTER} className="font-medium text-primary hover:underline">
-              Create one
+              Создать
             </Link>
           </p>
         </div>

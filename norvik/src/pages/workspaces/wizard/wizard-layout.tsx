@@ -12,9 +12,9 @@ interface PlannerWizardProps {
 }
 
 const steps = [
-  { id: 1, label: "Room Setup" },
-  { id: 2, label: "Select Catalog" },
-  { id: 3, label: "Walls & Anchors" },
+  { id: 1, label: "Настройка комнаты" },
+  { id: 2, label: "Выбор каталога" },
+  { id: 3, label: "Стены и точки привязки" },
 ];
 
 export function PlannerWizard({ onComplete }: PlannerWizardProps) {
@@ -26,11 +26,11 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
       1:
         roomWidth > 0 && roomDepth > 0
           ? null
-          : "Room dimensions must be greater than 0",
+          : "Размеры комнаты должны быть больше 0",
       2:
         selectedCatalogId !== null
           ? null
-          : "Please select a catalog",
+          : "Пожалуйста, выберите каталог",
       3:
         walls.length > 0
           ? (() => {
@@ -38,7 +38,7 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
                 for (let i = 0; i < wall.anchors.length; i++) {
                   const a = wall.anchors[i];
                   if (a.position < 0 || a.position + a.width > wall.length) {
-                    return "Some anchors extend beyond wall bounds";
+                    return "Некоторые точки привязки выходят за пределы стены";
                   }
                   for (let j = i + 1; j < wall.anchors.length; j++) {
                     const b = wall.anchors[j];
@@ -46,14 +46,14 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
                       a.position < b.position + b.width &&
                       a.position + a.width > b.position
                     ) {
-                      return "Some anchors overlap each other";
+                      return "Некоторые точки привязки перекрывают друг друга";
                     }
                   }
                 }
               }
               return null;
             })()
-          : "At least one wall is required",
+          : "Необходима хотя бы одна стена",
     };
     return stepErrors;
   }, [roomWidth, roomDepth, walls, selectedCatalogId]);
@@ -158,7 +158,7 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
           className="gap-2 rounded-xl"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back
+          Назад
         </Button>
 
         <Button
@@ -170,11 +170,11 @@ export function PlannerWizard({ onComplete }: PlannerWizardProps) {
           {isLastStep ? (
             <>
               <Wand2 className="h-4 w-4" />
-              Generate Plan
+              Сгенерировать план
             </>
           ) : (
             <>
-              Next
+              Далее
               <ChevronRight className="h-4 w-4" />
             </>
           )}

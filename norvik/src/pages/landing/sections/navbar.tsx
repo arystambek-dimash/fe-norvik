@@ -16,8 +16,8 @@ export function Navbar() {
   }, []);
 
   const navLinks = [
-    { label: "Features", href: "#features" },
-    { label: "How it Works", href: "#how-it-works" },
+    { label: "Возможности", href: "#features" },
+    { label: "Как это работает", href: "#how-it-works" },
   ];
 
   return (
@@ -57,14 +57,14 @@ export function Navbar() {
         {/* Right actions — desktop */}
         <div className="hidden items-center gap-3 md:flex">
           <Button variant="ghost" size="sm" className="text-white/70 hover:bg-white/10 hover:text-white" asChild>
-            <Link to={ROUTES.LOGIN}>Log in</Link>
+            <Link to={ROUTES.LOGIN}>Войти</Link>
           </Button>
           <Button
             size="sm"
             className="bg-gradient-to-r from-brass to-yellow-600 text-espresso font-semibold animate-cta-glow"
             asChild
           >
-            <Link to={ROUTES.REGISTER}>Get Started</Link>
+            <Link to={ROUTES.REGISTER}>Начать</Link>
           </Button>
         </div>
 
@@ -97,13 +97,13 @@ export function Navbar() {
           ))}
           <div className="mt-2 flex flex-col gap-2">
             <Button variant="ghost" className="justify-start text-white/70 hover:bg-white/10 hover:text-white" asChild>
-              <Link to={ROUTES.LOGIN}>Log in</Link>
+              <Link to={ROUTES.LOGIN}>Войти</Link>
             </Button>
             <Button
               className="bg-gradient-to-r from-brass to-yellow-600 text-espresso font-semibold"
               asChild
             >
-              <Link to={ROUTES.REGISTER}>Get Started</Link>
+              <Link to={ROUTES.REGISTER}>Начать</Link>
             </Button>
           </div>
         </div>

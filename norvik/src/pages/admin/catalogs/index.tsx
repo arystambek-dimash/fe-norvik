@@ -18,7 +18,7 @@ import { getCatalogColumns } from "./columns";
 import { Plus } from "lucide-react";
 
 const schema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Название обязательно"),
   preview_img: z.string().nullable().optional(),
 });
 
@@ -39,20 +39,20 @@ export default function AdminCatalogsPage() {
 
   const createMutation = useMutation({
     mutationFn: catalogsApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["catalogs"] }); toast.success("Catalog created"); setCreateOpen(false); createForm.reset(); },
-    onError: () => toast.error("Failed to create catalog"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["catalogs"] }); toast.success("Каталог создан"); setCreateOpen(false); createForm.reset(); },
+    onError: () => toast.error("Не удалось создать каталог"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: z.infer<typeof schema> }) => catalogsApi.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["catalogs"] }); toast.success("Catalog updated"); setEditItem(null); },
-    onError: () => toast.error("Failed to update catalog"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["catalogs"] }); toast.success("Каталог обновлён"); setEditItem(null); },
+    onError: () => toast.error("Не удалось обновить каталог"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: ({ id, hard }: { id: number; hard: boolean }) => catalogsApi.delete(id, hard),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["catalogs"] }); toast.success("Catalog deleted"); setDeleteItem(null); },
-    onError: () => toast.error("Failed to delete catalog"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["catalogs"] }); toast.success("Каталог удалён"); setDeleteItem(null); },
+    onError: () => toast.error("Не удалось удалить каталог"),
   });
 
   const columns = getCatalogColumns({
@@ -63,25 +63,25 @@ export default function AdminCatalogsPage() {
   return (
     <div className="space-y-8">
       <div className="animate-fade-up">
-        <PageHeader title="Catalogs" description="Manage product catalogs" action={<Button className="rounded-lg" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Catalog</Button>} />
+        <PageHeader title="Каталоги" description="Управление каталогами продукции" action={<Button className="rounded-lg" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Добавить каталог</Button>} />
       </div>
       <DataTable columns={columns} data={data} isLoading={isLoading} pagination={{ offset: pagination.offset, limit: pagination.limit, onNext: pagination.nextPage, onPrev: pagination.prevPage }} />
 
-      <CrudDialog open={createOpen} onOpenChange={setCreateOpen} title="Add Catalog" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Create">
+      <CrudDialog open={createOpen} onOpenChange={setCreateOpen} title="Добавить каталог" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Создать">
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Name</Label><Input {...createForm.register("name")} /></div>
-          <div className="space-y-2"><Label>Preview Image URL</Label><Input {...createForm.register("preview_img")} placeholder="https://..." /></div>
+          <div className="space-y-2"><Label>Название</Label><Input {...createForm.register("name")} /></div>
+          <div className="space-y-2"><Label>URL изображения для предпросмотра</Label><Input {...createForm.register("preview_img")} placeholder="https://..." /></div>
         </div>
       </CrudDialog>
 
-      <CrudDialog open={editItem !== null} onOpenChange={() => setEditItem(null)} title="Edit Catalog" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
+      <CrudDialog open={editItem !== null} onOpenChange={() => setEditItem(null)} title="Редактировать каталог" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Name</Label><Input {...editForm.register("name")} /></div>
-          <div className="space-y-2"><Label>Preview Image URL</Label><Input {...editForm.register("preview_img")} placeholder="https://..." /></div>
+          <div className="space-y-2"><Label>Название</Label><Input {...editForm.register("name")} /></div>
+          <div className="space-y-2"><Label>URL изображения для предпросмотра</Label><Input {...editForm.register("preview_img")} placeholder="https://..." /></div>
         </div>
       </CrudDialog>
 
-      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={(hard) => deleteItem && deleteMutation.mutate({ id: deleteItem.id, hard })} title={`Delete ${deleteItem?.name}?`} isLoading={deleteMutation.isPending} showHardDelete />
+      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={(hard) => deleteItem && deleteMutation.mutate({ id: deleteItem.id, hard })} title={`Удалить ${deleteItem?.name}?`} isLoading={deleteMutation.isPending} showHardDelete />
     </div>
   );
 }

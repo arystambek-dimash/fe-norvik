@@ -264,7 +264,7 @@ export function ModelPreviewDialog({
             {/* Floating badge */}
             <div className={`absolute top-4 left-4 flex items-center gap-1.5 rounded-full bg-background/80 backdrop-blur-sm px-3 py-1.5 text-xs font-medium shadow-sm ${hasGlb ? "text-foreground" : "text-muted-foreground"}`}>
               {hasGlb ? <Cuboid className="h-3.5 w-3.5" /> : <Box className="h-3.5 w-3.5" />}
-              {hasGlb ? "3D Model" : "Preview"}
+              {hasGlb ? "3D Модель" : "Предпросмотр"}
             </div>
           </div>
 
@@ -273,7 +273,7 @@ export function ModelPreviewDialog({
             <DialogHeader className="pb-4">
               <DialogTitle className="text-xl">{cabinet.article}</DialogTitle>
               <DialogDescription className="sr-only">
-                Cabinet model preview and details
+                Предпросмотр и детали модели шкафа
               </DialogDescription>
               <div className="flex flex-wrap gap-2 pt-1">
                 <Badge variant="secondary" className="rounded-md">
@@ -283,7 +283,7 @@ export function ModelPreviewDialog({
                   {capitalize(cabinet.type)}
                 </Badge>
                 {cabinet.inbuilt && (
-                  <Badge className="rounded-md">Inbuilt</Badge>
+                  <Badge className="rounded-md">Встроенный</Badge>
                 )}
               </div>
             </DialogHeader>
@@ -293,22 +293,22 @@ export function ModelPreviewDialog({
             <div className="flex-1 space-y-0.5">
               <DetailRow
                 icon={<Ruler className="h-4 w-4" />}
-                label="Dimensions"
+                label="Размеры"
                 value={`${cabinet.width} x ${cabinet.height} x ${cabinet.depth} mm`}
               />
               <DetailRow
                 icon={<DollarSign className="h-4 w-4" />}
-                label="Price"
+                label="Цена"
                 value={`$${cabinet.price}`}
               />
               <DetailRow
                 icon={<Tag className="h-4 w-4" />}
-                label="Subtype"
+                label="Подтип"
                 value={capitalize(cabinet.subtype)}
               />
               <DetailRow
                 icon={<Layers className="h-4 w-4" />}
-                label="Category"
+                label="Категория"
                 value={`#${cabinet.category_id}`}
               />
 
@@ -317,7 +317,7 @@ export function ModelPreviewDialog({
                   <Separator className="my-3" />
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                      Description
+                      Описание
                     </p>
                     <p className="text-sm leading-relaxed text-muted-foreground">
                       {cabinet.description}

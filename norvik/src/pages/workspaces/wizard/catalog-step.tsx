@@ -40,9 +40,9 @@ export function CatalogStep() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-display text-lg font-semibold">Select Catalog</h2>
+        <h2 className="font-display text-lg font-semibold">Выбор каталога</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Choose a cabinet catalog for your kitchen plan
+          Выберите каталог шкафов для вашего проекта кухни
         </p>
       </div>
 
@@ -54,7 +54,7 @@ export function CatalogStep() {
         </div>
       ) : catalogs?.length === 0 ? (
         <div className="flex h-52 items-center justify-center rounded-xl border border-dashed border-border/60">
-          <p className="text-muted-foreground">No catalogs available</p>
+          <p className="text-muted-foreground">Нет доступных каталогов</p>
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -114,13 +114,13 @@ export function CatalogStep() {
 
       {selectedCatalogId !== null && isLoadingModules && (
         <p className="text-center text-sm text-muted-foreground animate-pulse">
-          Loading cabinet modules...
+          Загрузка модулей шкафов...
         </p>
       )}
 
       {selectedCatalogId !== null && modules && modules.length > 0 && (
         <p className="text-center text-sm text-muted-foreground">
-          {modules.length} cabinet modules available
+          {modules.length} модулей шкафов доступно
         </p>
       )}
     </div>

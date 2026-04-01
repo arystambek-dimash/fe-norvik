@@ -37,12 +37,12 @@ export function createActionsColumn<T>({
           ))}
           {onEdit && (
             <DropdownMenuItem onClick={() => onEdit(row.original)}>
-              <Pencil className="mr-2 h-4 w-4" />Edit
+              <Pencil className="mr-2 h-4 w-4" />Редактировать
             </DropdownMenuItem>
           )}
           {onDelete && (
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(row.original)}>
-              <Trash2 className="mr-2 h-4 w-4" />Delete
+              <Trash2 className="mr-2 h-4 w-4" />Удалить
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

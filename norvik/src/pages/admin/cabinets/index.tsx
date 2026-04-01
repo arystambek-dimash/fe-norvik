@@ -26,15 +26,15 @@ import { Plus, X, FolderOpen, Package } from "lucide-react";
 import { capitalize } from "@/lib/utils";
 
 const createSchema = z.object({
-  article: z.string().min(1, "Article is required"),
-  kind: z.string().min(1, "Kind is required"),
-  type: z.string().min(1, "Type is required"),
-  subtype: z.string().min(1, "Subtype is required"),
-  category_id: z.number().min(1, "Select a category"),
+  article: z.string().min(1, "Артикул обязателен"),
+  kind: z.string().min(1, "Вид обязателен"),
+  type: z.string().min(1, "Тип обязателен"),
+  subtype: z.string().min(1, "Подтип обязателен"),
+  category_id: z.number().min(1, "Выберите категорию"),
   price: z.string().optional(),
-  width: z.coerce.number().min(1, "Width is required"),
-  height: z.coerce.number().min(1, "Height is required"),
-  depth: z.coerce.number().min(1, "Depth is required"),
+  width: z.coerce.number().min(1, "Ширина обязательна"),
+  height: z.coerce.number().min(1, "Высота обязательна"),
+  depth: z.coerce.number().min(1, "Глубина обязательна"),
   inbuilt: z.boolean(),
   is_corner: z.boolean(),
   drawer_count: z.coerce.number().nullable().optional(),
@@ -119,8 +119,8 @@ export default function AdminCabinetsPage() {
       }
       return cabinet;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("Cabinet created"); setCreateOpen(false); createForm.reset(); setGlbFile(null); },
-    onError: () => toast.error("Failed to create cabinet"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("Шкаф создан"); setCreateOpen(false); createForm.reset(); setGlbFile(null); },
+    onError: () => toast.error("Не удалось создать шкаф"),
   });
 
   const updateMutation = useMutation({
@@ -131,20 +131,20 @@ export default function AdminCabinetsPage() {
       }
       return cabinet;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("Cabinet updated"); setEditItem(null); setGlbFile(null); },
-    onError: () => toast.error("Failed to update cabinet"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("Шкаф обновлён"); setEditItem(null); setGlbFile(null); },
+    onError: () => toast.error("Не удалось обновить шкаф"),
   });
 
   const deleteGlbMutation = useMutation({
     mutationFn: (cabinetId: number) => cabinetsApi.deleteGlb(cabinetId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("GLB file removed"); },
-    onError: () => toast.error("Failed to remove GLB file"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("GLB файл удалён"); },
+    onError: () => toast.error("Не удалось удалить GLB файл"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => cabinetsApi.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("Cabinet deleted"); setDeleteItem(null); },
-    onError: () => toast.error("Failed to delete cabinet"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["cabinets"] }); toast.success("Шкаф удалён"); setDeleteItem(null); },
+    onError: () => toast.error("Не удалось удалить шкаф"),
   });
 
   const columns = useMemo(() => getCabinetColumns({
@@ -179,14 +179,14 @@ export default function AdminCabinetsPage() {
   const formFields = (form: ReturnType<typeof useForm<FormValues>>, currentItem: CabinetRead | null = null) => (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Article</Label>
+        <Label>Артикул</Label>
         <Input {...form.register("article")} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Kind</Label>
+          <Label>Вид</Label>
           <Select value={form.watch("kind")} onValueChange={(v) => { form.setValue("kind", v); if (v !== CabinetKind.DRAWER_UNIT) form.setValue("drawer_count", null); }}>
-            <SelectTrigger><SelectValue placeholder="Select kind" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Выберите вид" /></SelectTrigger>
             <SelectContent>
               {Object.values(CabinetKind).map((k) => (
                 <SelectItem key={k} value={k}>{capitalize(k)}</SelectItem>
@@ -195,9 +195,9 @@ export default function AdminCabinetsPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Type</Label>
+          <Label>Тип</Label>
           <Select value={form.watch("type")} onValueChange={(v) => form.setValue("type", v)}>
-            <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Выберите тип" /></SelectTrigger>
             <SelectContent>
               {Object.values(CabinetType).map((t) => (
                 <SelectItem key={t} value={t}>{capitalize(t)}</SelectItem>
@@ -207,9 +207,9 @@ export default function AdminCabinetsPage() {
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Subtype</Label>
+        <Label>Подтип</Label>
         <Select value={form.watch("subtype")} onValueChange={(v) => form.setValue("subtype", v)}>
-          <SelectTrigger><SelectValue placeholder="Select subtype" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="Выберите подтип" /></SelectTrigger>
           <SelectContent>
             {Object.values(CabinetSubtype).map((s) => (
               <SelectItem key={s} value={s}>{capitalize(s)}</SelectItem>
@@ -218,9 +218,9 @@ export default function AdminCabinetsPage() {
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>Category</Label>
+        <Label>Категория</Label>
         <Select value={String(form.watch("category_id") || "")} onValueChange={(v) => form.setValue("category_id", Number(v))}>
-          <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="Выберите категорию" /></SelectTrigger>
           <SelectContent>
             {allCategories.map((c) => (
               <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
@@ -230,46 +230,46 @@ export default function AdminCabinetsPage() {
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Width (mm)</Label>
+          <Label>Ширина (мм)</Label>
           <Input type="number" {...form.register("width", { valueAsNumber: true })} placeholder="600" />
         </div>
         <div className="space-y-2">
-          <Label>Height (mm)</Label>
+          <Label>Высота (мм)</Label>
           <Input type="number" {...form.register("height", { valueAsNumber: true })} placeholder="720" />
         </div>
         <div className="space-y-2">
-          <Label>Depth (mm)</Label>
+          <Label>Глубина (мм)</Label>
           <Input type="number" {...form.register("depth", { valueAsNumber: true })} placeholder="560" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Price</Label>
+          <Label>Цена</Label>
           <Input {...form.register("price")} placeholder="0.00" />
         </div>
         <div className="flex items-center gap-4 pt-7">
           <div className="flex items-center gap-2">
             <Switch checked={form.watch("inbuilt")} onCheckedChange={(v) => form.setValue("inbuilt", v)} />
-            <Label>Inbuilt</Label>
+            <Label>Встроенный</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.watch("is_corner")} onCheckedChange={(v) => form.setValue("is_corner", v)} />
-            <Label>Corner</Label>
+            <Label>Угловой</Label>
           </div>
         </div>
       </div>
       {form.watch("kind") === CabinetKind.DRAWER_UNIT && (
         <div className="space-y-2">
-          <Label>Drawer Count</Label>
+          <Label>Количество ящиков</Label>
           <Input type="number" {...form.register("drawer_count", { valueAsNumber: true })} placeholder="2" min={1} max={10} />
         </div>
       )}
       <div className="space-y-2">
-        <Label>Description</Label>
-        <Textarea {...form.register("description")} placeholder="Optional description..." />
+        <Label>Описание</Label>
+        <Textarea {...form.register("description")} placeholder="Необязательное описание..." />
       </div>
       <div className="space-y-2">
-        <Label>GLB File</Label>
+        <Label>GLB Файл</Label>
         {currentItem?.glb_file && !glbFile && (
           <div className="flex items-center gap-2 text-sm">
             <a href={currentItem.glb_file} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline truncate max-w-[200px]">
@@ -296,11 +296,11 @@ export default function AdminCabinetsPage() {
       {/* Header */}
       <div className="animate-fade-up">
         <PageHeader
-          title="Cabinets"
-          description="Manage cabinet inventory"
+          title="Шкафы"
+          description="Управление каталогом шкафов"
           action={
             <Button className="rounded-lg" onClick={handleCreate} disabled={activeCategoryId === null}>
-              <Plus className="mr-2 h-4 w-4" />Add Cabinet
+              <Plus className="mr-2 h-4 w-4" />Добавить шкаф
             </Button>
           }
         />
@@ -309,13 +309,13 @@ export default function AdminCabinetsPage() {
       {/* Catalog selector */}
       <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
         <div className="flex items-center gap-3">
-          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Catalog</Label>
+          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Каталог</Label>
           <Select
             value={selectedCatalogId ? String(selectedCatalogId) : ""}
             onValueChange={(v) => setSelectedCatalogId(Number(v))}
           >
             <SelectTrigger className="w-60 rounded-lg">
-              <SelectValue placeholder="Select catalog" />
+              <SelectValue placeholder="Выберите каталог" />
             </SelectTrigger>
             <SelectContent>
               {catalogs.map((c) => (
@@ -331,7 +331,7 @@ export default function AdminCabinetsPage() {
         <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border/60 animate-fade-up">
           <div className="text-center">
             <Package className="mx-auto h-10 w-10 text-muted-foreground/25" />
-            <p className="mt-3 text-muted-foreground">Select a catalog to manage cabinets</p>
+            <p className="mt-3 text-muted-foreground">Выберите каталог для управления шкафами</p>
           </div>
         </div>
       ) : categoriesLoading ? (
@@ -350,8 +350,8 @@ export default function AdminCabinetsPage() {
         <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border/60 animate-fade-up" style={{ animationDelay: "80ms" }}>
           <div className="text-center">
             <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground/25" />
-            <p className="mt-3 text-muted-foreground">No categories in this catalog</p>
-            <p className="mt-1 text-sm text-muted-foreground/60">Create categories first in the Categories admin page</p>
+            <p className="mt-3 text-muted-foreground">В этом каталоге нет категорий</p>
+            <p className="mt-1 text-sm text-muted-foreground/60">Сначала создайте категории на странице администрирования категорий</p>
           </div>
         </div>
       ) : (
@@ -359,7 +359,7 @@ export default function AdminCabinetsPage() {
           {/* Categories sidebar */}
           <div className="w-56 shrink-0">
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-              Categories
+              Категории
             </p>
             <nav className="space-y-1">
               {categories.map((category) => (
@@ -387,15 +387,15 @@ export default function AdminCabinetsPage() {
       )}
 
       {/* Dialogs */}
-      <CrudDialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) setGlbFile(null); }} title="Add Cabinet" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Create">
+      <CrudDialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) setGlbFile(null); }} title="Добавить шкаф" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Создать">
         {formFields(createForm)}
       </CrudDialog>
 
-      <CrudDialog open={editItem !== null} onOpenChange={(open) => { if (!open) { setEditItem(null); setGlbFile(null); } }} title="Edit Cabinet" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
+      <CrudDialog open={editItem !== null} onOpenChange={(open) => { if (!open) { setEditItem(null); setGlbFile(null); } }} title="Редактировать шкаф" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
         {formFields(editForm, editItem)}
       </CrudDialog>
 
-      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)} title={`Delete ${deleteItem?.article}?`} isLoading={deleteMutation.isPending} />
+      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)} title={`Удалить ${deleteItem?.article}?`} isLoading={deleteMutation.isPending} />
 
       <ModelPreviewDialog cabinet={previewItem} onOpenChange={() => setPreviewItem(null)} />
     </div>
