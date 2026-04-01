@@ -8,7 +8,7 @@ import {
 } from './planner-helpers';
 import { planLShaped } from './l-shaped-planner';
 
-export { resetModuleCounter, buildModuleMaps } from './planner-helpers';
+export { resetModuleCounter, buildModuleMaps, solveSegment } from './planner-helpers';
 
 export function planKitchen(input: PlannerInput): SolverVariant[] {
   if (input.layoutType === 'l-shaped') {
@@ -20,7 +20,10 @@ export function planKitchen(input: PlannerInput): SolverVariant[] {
 function planLinear(input: PlannerInput): SolverVariant[] {
   resetModuleCounter();
   const ctx = preparePlannerContext(input);
-  const { cornerModules, cornerOffsets } = placeCorners(input.corners, input.modules);
+  const { cornerModules, cornerOffsets } = placeCorners(input.corners, input.modules, {
+    lowerCornerCabinetId: input.selectedLowerCornerCabinetId,
+    upperCornerCabinetId: input.selectedUpperCornerCabinetId,
+  });
   const lastWallId = input.walls.length > 0 ? input.walls[input.walls.length - 1].id : null;
 
   const wallVariantSets: WallPlan[][] = [];

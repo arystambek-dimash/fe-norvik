@@ -71,6 +71,15 @@ describe('segmentWall', () => {
     expect(segments[0]).toMatchObject({ start: 600, end: 2200, width: 1600 });
   });
 
+  it('does not move cursor backward when an anchor ends before startOffset', () => {
+    const wall = makeWall(3200, [
+      { type: 'oven', position: 0, width: 600 },
+    ]);
+    const segments = segmentWall(wall, { startOffset: 1500 });
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toMatchObject({ start: 1500, end: 3200, width: 1700 });
+  });
+
   it('segment widths + anchor widths = wall length (invariant)', () => {
     const wall = makeWall(2800, [
       { type: 'sink', position: 200, width: 600 },

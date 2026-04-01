@@ -263,6 +263,9 @@ export function createCornerCabinet(
   width: number,
   depth: number,
   height: number,
+  options?: {
+    includeCountertop?: boolean;
+  },
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = 'corner-cabinet';
@@ -333,7 +336,9 @@ export function createCornerCabinet(
   }
 
   // L-shaped countertop
-  group.add(createCornerCountertop(width, depth, height));
+  if (options?.includeCountertop !== false) {
+    group.add(createCornerCountertop(width, depth, height));
+  }
 
   return group;
 }

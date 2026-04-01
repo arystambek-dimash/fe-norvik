@@ -4,18 +4,27 @@ import { usePlannerStore } from "@/stores/planner-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Plus, Trash2, CookingPot, Droplets, Flame, Refrigerator } from "lucide-react";
-import { SINK_COOKTOP_GAP_GRID, MAX_COUNTERTOP, CORNER_WALL_OCCUPANCY } from "@/algorithm/constants";
+import { MAX_COUNTERTOP, CORNER_WALL_OCCUPANCY } from "@/algorithm/constants";
 import { snapToGrid } from "@/algorithm/segmenter";
-import { CabinetKind } from "@/types/enums";
+import { CabinetKind, CabinetType } from "@/types/enums";
+import type { CabinetRead } from "@/types/entities";
 
 interface Anchor {
   type: "sink" | "cooktop" | "oven";
   position: number;
   width: number;
   glbFile?: string | null;
+}
+
+interface SegmentIssue {
+  anchorIdx: number;
+  side: 'before' | 'after';
+  segmentWidth: number;
+  suggestions: number[];
 }
 
 interface WallConfig {
@@ -73,7 +82,6 @@ function hasInvalidGap(anchors: Anchor[], index: number, drawerHousingWidth: num
   if (a.type !== "sink" && a.type !== "cooktop") return false;
   const counterType = a.type === "sink" ? "cooktop" : "sink";
   const aEnd = a.position + a.width;
-  const minGapAligned = Math.ceil(drawerHousingWidth / SINK_COOKTOP_GAP_GRID) * SINK_COOKTOP_GAP_GRID;
   for (let i = 0; i < anchors.length; i++) {
     if (i === index) continue;
     const b = anchors[i];
@@ -82,8 +90,8 @@ function hasInvalidGap(anchors: Anchor[], index: number, drawerHousingWidth: num
     // Gap = distance between the two non-overlapping edges
     const gap = Math.max(b.position - aEnd, a.position - bEnd);
     if (gap < 0) continue;
-    if (gap < minGapAligned) return true;
-    if (gap % SINK_COOKTOP_GAP_GRID !== 0) return true;
+    if (gap < drawerHousingWidth) return true;
+    if (gap % 50 !== 0) return true;
   }
   return false;
 }
@@ -109,6 +117,52 @@ function isInFridgeZone(
   }
 }
 
+function analyzeSegments(wall: WallConfig): SegmentIssue[] {
+  const sortedAnchors = [...wall.anchors].sort((a, b) => a.position - b.position);
+  const issues: SegmentIssue[] = [];
+
+  let cursor = 0;
+  for (let i = 0; i <= sortedAnchors.length; i++) {
+    const segEnd = i < sortedAnchors.length ? sortedAnchors[i].position : wall.length;
+    const segWidth = segEnd - cursor;
+
+    if (segWidth > 50 && segWidth % 50 !== 0) {
+      const anchorIdx = i < sortedAnchors.length ? i : i - 1;
+      const side: 'before' | 'after' = i < sortedAnchors.length ? 'before' : 'after';
+      const anchor = sortedAnchors[anchorIdx];
+      const origIdx = wall.anchors.indexOf(anchor);
+      const suggestions: number[] = [];
+      const segCursor = side === 'before' ? cursor : anchor.position + anchor.width;
+
+      for (const delta of [-100, -50, 50, 100]) {
+        const newPos = anchor.position + delta;
+        if (newPos < 0 || newPos + anchor.width > wall.length) continue;
+        const hasOv = wall.anchors.some((a, idx) => {
+          if (idx === origIdx) return false;
+          return newPos < a.position + a.width && newPos + anchor.width > a.position;
+        });
+        if (hasOv) continue;
+        const newSegWidth = side === 'before'
+          ? newPos - segCursor
+          : wall.length - (newPos + anchor.width);
+        if (newSegWidth > 0 && newSegWidth % 50 === 0) {
+          suggestions.push(newPos);
+        }
+      }
+
+      if (suggestions.length > 0) {
+        issues.push({ anchorIdx: origIdx, side, segmentWidth: segWidth, suggestions });
+      }
+    }
+
+    if (i < sortedAnchors.length) {
+      cursor = sortedAnchors[i].position + sortedAnchors[i].width;
+    }
+  }
+
+  return issues;
+}
+
 function isInCornerZone(
   anchor: Anchor,
   wallLength: number,
@@ -131,6 +185,7 @@ function WallDiagram({
   fridgeWidth,
   penalWidth,
   cornerSide,
+  cornerSummary,
   onUpdateAnchor,
   onRemoveAnchor,
   onAddAnchor,
@@ -141,6 +196,7 @@ function WallDiagram({
   fridgeWidth?: number;
   penalWidth?: number;
   cornerSide?: 'start' | 'end';
+  cornerSummary?: string;
   onUpdateAnchor: (
     wallId: string,
     anchorIdx: number,
@@ -151,6 +207,11 @@ function WallDiagram({
 }) {
   const barWidth = Math.min(520, typeof window !== "undefined" ? window.innerWidth - 200 : 480);
   const scale = barWidth / wall.length;
+
+  const segmentIssues = useMemo(
+    () => analyzeSegments(wall),
+    [wall],
+  );
 
   return (
     <div className="space-y-4 rounded-xl border border-border/60 p-5">
@@ -254,9 +315,9 @@ function WallDiagram({
               <div
                 className="absolute top-0 flex h-10 items-center justify-center rounded border border-dashed border-violet-400 bg-violet-500/20 text-[10px] font-medium text-violet-700"
                 style={{ left: cornerLeft, width: cornerW }}
-                title={`Угловой модуль (СУ): ${CORNER_WALL_OCCUPANCY}мм`}
+                title={cornerSummary ?? `Угловая зона одного СУ: ${CORNER_WALL_OCCUPANCY}мм`}
               >
-                СУ
+                Угол
               </div>
             );
           })()}
@@ -282,16 +343,6 @@ function WallDiagram({
           {(penalWidth ?? 0) > 0 && (
             <span className="italic">(пенал добавлен, т.к. стена &gt; {MAX_COUNTERTOP} мм)</span>
           )}
-        </div>
-      )}
-
-      {/* Corner zone info */}
-      {cornerSide && (
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <span className="text-violet-600">
-            Угловой модуль (СУ): <strong>{CORNER_WALL_OCCUPANCY} мм</strong>
-            {cornerSide === 'start' ? ' (начало стены)' : ' (конец стены)'}
-          </span>
         </div>
       )}
 
@@ -334,7 +385,7 @@ function WallDiagram({
                     value={anchor.position}
                     onChange={(e) =>
                       onUpdateAnchor(wall.id, idx, {
-                        position: Math.max(0, snapToGrid(parseInt(e.target.value, 10) || 0)),
+                        position: Math.max(0, parseInt(e.target.value, 10) || 0),
                       })
                     }
                     className="h-8 w-24 text-center text-sm"
@@ -382,7 +433,7 @@ function WallDiagram({
                 )}
                 {tooClose && (
                   <p className="w-full text-xs text-destructive">
-                    Мин. расстояние между мойкой и варочной — {Math.ceil(drawerHousingWidth / SINK_COOKTOP_GAP_GRID) * SINK_COOKTOP_GAP_GRID} мм (кратно {SINK_COOKTOP_GAP_GRID})
+                    Мин. расстояние между мойкой и варочной — {drawerHousingWidth} мм (кратно 50)
                   </p>
                 )}
                 {inFridgeZone && (
@@ -392,9 +443,30 @@ function WallDiagram({
                 )}
                 {inCornerZone && (
                   <p className="w-full text-xs text-destructive">
-                    Якорь пересекается с угловой зоной (СУ) — переместите якорь за пределы зоны ({cornerSide === 'start' ? `0–${CORNER_WALL_OCCUPANCY}` : `${wall.length - CORNER_WALL_OCCUPANCY}–${wall.length}`} мм)
+                    Якорь пересекается с угловой зоной одного СУ — переместите якорь за пределы зоны ({cornerSide === 'start' ? `0–${CORNER_WALL_OCCUPANCY}` : `${wall.length - CORNER_WALL_OCCUPANCY}–${wall.length}`} мм)
                   </p>
                 )}
+                {segmentIssues
+                  .filter(issue => issue.anchorIdx === idx)
+                  .map((issue, issueIdx) => (
+                    <div key={issueIdx} className="w-full space-y-1">
+                      <p className="text-xs text-amber-600">
+                        ⚠️ Сегмент {issue.segmentWidth}мм ({issue.side === 'before' ? 'слева' : 'справа'} от якоря) — не кратно 50мм, могут появиться пустые места
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {issue.suggestions.map((pos) => (
+                          <button
+                            key={pos}
+                            type="button"
+                            onClick={() => onUpdateAnchor(wall.id, idx, { position: pos })}
+                            className="text-xs px-2 py-0.5 rounded-md border border-amber-400 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                          >
+                            → {pos}мм
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
               </div>
             );
           })}
@@ -454,8 +526,54 @@ function CompactSelector<T extends number | string>({ label, options, value, onC
 }
 
 export function WallsStep() {
-  const { roomWidth, layoutType, lShapedSide, sideWallWidth, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, useInbuiltStove, setUseInbuiltStove, selectedStoveId, setSelectedStoveId, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth, fridgeSide, setFridgeSide, modules } =
+  const { roomWidth, layoutType, lShapedSide, sideWallWidth, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, useInbuiltStove, setUseInbuiltStove, selectedStoveId, setSelectedStoveId, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth, fridgeSide, setFridgeSide, selectedLowerCornerCabinetId, setSelectedLowerCornerCabinetId, selectedUpperCornerCabinetId, setSelectedUpperCornerCabinetId, modules } =
     usePlannerStore();
+
+  const lowerCornerOptions = useMemo(
+    () => modules.filter((m: CabinetRead) => m.is_corner && m.type === CabinetType.LOWER),
+    [modules],
+  );
+
+  const upperCornerOptions = useMemo(
+    () => modules.filter((m: CabinetRead) => m.is_corner && m.type === CabinetType.UPPER),
+    [modules],
+  );
+
+  const selectedLowerCornerCabinet = useMemo(
+    () => lowerCornerOptions.find((m) => m.id === selectedLowerCornerCabinetId) ?? lowerCornerOptions[0] ?? null,
+    [lowerCornerOptions, selectedLowerCornerCabinetId],
+  );
+
+  const selectedUpperCornerCabinet = useMemo(
+    () => upperCornerOptions.find((m) => m.id === selectedUpperCornerCabinetId) ?? null,
+    [upperCornerOptions, selectedUpperCornerCabinetId],
+  );
+
+  // Auto-select lower corner + auto-match upper corner by width
+  useEffect(() => {
+    if (layoutType !== "l-shaped") return;
+    if (lowerCornerOptions.length === 0) {
+      if (selectedLowerCornerCabinetId !== null) setSelectedLowerCornerCabinetId(null);
+      if (selectedUpperCornerCabinetId !== null) setSelectedUpperCornerCabinetId(null);
+      return;
+    }
+
+    const stillExists = lowerCornerOptions.some((cab) => cab.id === selectedLowerCornerCabinetId);
+    if (!stillExists) {
+      setSelectedLowerCornerCabinetId(lowerCornerOptions[0].id);
+    }
+
+    // Auto-select upper corner matching lower corner width
+    const lowerCab = lowerCornerOptions.find((c) => c.id === selectedLowerCornerCabinetId) ?? lowerCornerOptions[0];
+    if (lowerCab && upperCornerOptions.length > 0) {
+      const matchingUpper = upperCornerOptions.find((c) => c.width === lowerCab.width) ?? upperCornerOptions[0];
+      if (matchingUpper && matchingUpper.id !== selectedUpperCornerCabinetId) {
+        setSelectedUpperCornerCabinetId(matchingUpper.id);
+      }
+    } else if (selectedUpperCornerCabinetId !== null) {
+      setSelectedUpperCornerCabinetId(null);
+    }
+  }, [layoutType, lowerCornerOptions, upperCornerOptions, selectedLowerCornerCabinetId, selectedUpperCornerCabinetId, setSelectedLowerCornerCabinetId, setSelectedUpperCornerCabinetId]);
 
   // Auto-generate walls when room config changes
   const generatedWalls = useMemo<WallConfig[]>(() => {
@@ -530,15 +648,31 @@ export function WallsStep() {
     };
   }, [walls, modules, fridgeSide, layoutType]);
 
-  // Corner zone for L-shaped: wall1.end ↔ wall2.start
+  // Corner zone for L-shaped: back wall start/end depends on selected side
   const cornerZone = useMemo(() => {
     if (layoutType !== 'l-shaped' || walls.length < 2) return null;
+    const wall1Side: 'start' | 'end' = lShapedSide === 'left' ? 'start' : 'end';
+    const occupancy = selectedLowerCornerCabinet?.width ?? CORNER_WALL_OCCUPANCY;
     return {
       wall1Id: walls[0].id,
+      wall1Side,
       wall2Id: walls[1].id,
-      occupancy: CORNER_WALL_OCCUPANCY,
+      wall2Side: 'start' as const,
+      occupancy,
     };
-  }, [layoutType, walls]);
+  }, [layoutType, walls, lShapedSide, selectedLowerCornerCabinet]);
+
+  const cornerSummary = useMemo(() => {
+    if (!cornerZone || walls.length < 2) return null;
+    const backWallEdge = cornerZone.wall1Side === 'start' ? 'в начале Back Wall' : 'в конце Back Wall';
+    const lowerLabel = selectedLowerCornerCabinet
+      ? `${selectedLowerCornerCabinet.article} (${selectedLowerCornerCabinet.width} мм)`
+      : `не выбран, используется резерв ${cornerZone.occupancy} мм`;
+    const upperLabel = selectedUpperCornerCabinet
+      ? `${selectedUpperCornerCabinet.article} (${selectedUpperCornerCabinet.width} мм)`
+      : "не выбран";
+    return `Нижний угловой модуль: ${lowerLabel}. Верхний угловой модуль: ${upperLabel}. Нижний СУ занимает по ${cornerZone.occupancy} мм на обеих стенах: ${backWallEdge} и в начале ${walls[1].id}.`;
+  }, [cornerZone, walls, selectedLowerCornerCabinet, selectedUpperCornerCabinet]);
 
   /** Snap anchor position out of fridge/penal zone if it overlaps */
   const snapOutOfFridgeZone = useCallback(
@@ -564,17 +698,24 @@ export function WallsStep() {
       if (!cornerZone) return position;
       const anchorEnd = position + width;
       if (wallId === cornerZone.wall1Id) {
-        // Corner at end of wall1
         const wall1 = walls.find((w) => w.id === cornerZone.wall1Id);
         if (!wall1) return position;
+        if (cornerZone.wall1Side === 'start') {
+          if (position < cornerZone.occupancy && anchorEnd > 0) {
+            toast.info(`Якорь сдвинут из угловой зоны (0–${cornerZone.occupancy} мм)`);
+            return snapToGrid(cornerZone.occupancy);
+          }
+          return position;
+        }
+
+        // Corner at end of back wall
         const zoneStart = wall1.length - cornerZone.occupancy;
         if (position < wall1.length && anchorEnd > zoneStart) {
           toast.info(`Якорь сдвинут из угловой зоны (${zoneStart}–${wall1.length} мм)`);
           return snapToGrid(Math.max(0, zoneStart - width));
         }
       } else if (wallId === cornerZone.wall2Id) {
-        // Corner at start of wall2
-        if (position < cornerZone.occupancy && anchorEnd > 0) {
+        if (cornerZone.wall2Side === 'start' && position < cornerZone.occupancy && anchorEnd > 0) {
           toast.info(`Якорь сдвинут из угловой зоны (0–${cornerZone.occupancy} мм)`);
           return snapToGrid(cornerZone.occupancy);
         }
@@ -791,9 +932,50 @@ export function WallsStep() {
             Нет отдельностоящих плит в каталоге
           </p>
         )}
+
+        {layoutType === "l-shaped" && (
+          <div className="mt-3 space-y-3 border-t border-border/40 pt-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Угловой модуль (СУ)</Label>
+              <Select
+                value={selectedLowerCornerCabinet ? String(selectedLowerCornerCabinet.id) : "__none__"}
+                onValueChange={(value) =>
+                  setSelectedLowerCornerCabinetId(value === "__none__" ? null : Number(value))
+                }
+              >
+                <SelectTrigger className="rounded-lg">
+                  <SelectValue placeholder="Выберите СУ" />
+                </SelectTrigger>
+                <SelectContent>
+                  {lowerCornerOptions.length === 0 ? (
+                    <SelectItem value="__none__">Нет СУ в каталоге</SelectItem>
+                  ) : (
+                    lowerCornerOptions.map((cab) => (
+                      <SelectItem key={cab.id} value={String(cab.id)}>
+                        {cab.article} · {cab.width}x{cab.height}x{cab.depth} мм
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {lowerCornerOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                В текущем каталоге нет угловых модулей (is_corner=true).
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-6">
+        {cornerSummary && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm text-violet-900">
+            {cornerSummary}
+          </div>
+        )}
+
         {walls.map((wall) => {
           // Determine if this wall has the fridge
           const hasFridge = fridgeZone && wall.id === fridgeZone.wallId;
@@ -804,8 +986,8 @@ export function WallsStep() {
           // Determine corner side for this wall
           let wallCornerSide: 'start' | 'end' | undefined;
           if (cornerZone) {
-            if (wall.id === cornerZone.wall1Id) wallCornerSide = 'end';
-            else if (wall.id === cornerZone.wall2Id) wallCornerSide = 'start';
+            if (wall.id === cornerZone.wall1Id) wallCornerSide = cornerZone.wall1Side;
+            else if (wall.id === cornerZone.wall2Id) wallCornerSide = cornerZone.wall2Side;
           }
 
           return (
@@ -817,6 +999,7 @@ export function WallsStep() {
               fridgeWidth={wallFridgeWidth}
               penalWidth={wallPenalWidth}
               cornerSide={wallCornerSide}
+              cornerSummary={cornerSummary ?? undefined}
               onUpdateAnchor={handleUpdateAnchor}
               onRemoveAnchor={handleRemoveAnchor}
               onAddAnchor={handleAddAnchor}

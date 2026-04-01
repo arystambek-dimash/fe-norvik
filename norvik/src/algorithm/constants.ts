@@ -127,6 +127,11 @@ export const PREP_ZONE_MIN = 600;
 export const PREP_ZONE_MAX = 1200;
 export const PREP_ZONE_TOLERANCE = 400;
 
+/** Longest uninterrupted countertop run ideal range and tolerance (mm) */
+export const CONTINUOUS_COUNTERTOP_MIN = 900;
+export const CONTINUOUS_COUNTERTOP_MAX = 1800;
+export const CONTINUOUS_COUNTERTOP_TOLERANCE = 600;
+
 /** Sink-to-hob centre distance ideal range and tolerance (mm) */
 export const SINK_HOB_MIN = 900;
 export const SINK_HOB_MAX = 1800;

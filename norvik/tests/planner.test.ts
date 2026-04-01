@@ -4,6 +4,7 @@ import { GoldenTable } from '../src/algorithm/golden-table';
 import type { CabinetRead } from '../src/types/entities';
 import type { PlannerInput, Segment } from '../src/algorithm/types';
 import { CabinetKind, CabinetType, CabinetSubtype } from '../src/types/enums';
+import { deriveInput } from '../src/algorithm/derive-input';
 
 let nextId = 1000;
 
@@ -174,9 +175,342 @@ describe('planKitchen integration', () => {
       useHood: false,
       sinkModuleWidth: 600,
       drawerHousingWidth: 400,
+      fridgeSide: 'right',
+      useInbuiltStove: true,
+      selectedStoveId: null,
+      selectedLowerCornerCabinetId: null,
+      selectedUpperCornerCabinetId: null,
       ...overrides,
     };
   }
+
+  it('derives left L-shaped corner on the back-wall start', () => {
+    const input = deriveInput({
+      roomWidth: 2800,
+      roomDepth: 2500,
+      wallHeight: 2700,
+      layoutType: 'l-shaped',
+      lShapedSide: 'left',
+      walls: [
+        { id: 'Back Wall', length: 2800, anchors: [] },
+        { id: 'Left Wall', length: 1800, anchors: [] },
+      ],
+      anchors: {
+        'Back Wall': [],
+        'Left Wall': [],
+      },
+      availableCabinets: standardModules(),
+    });
+
+    expect(input.corners).toHaveLength(1);
+    expect(input.corners[0].wallA).toEqual({ wallId: 'Back Wall', end: 'start' });
+    expect(input.corners[0].wallB).toEqual({ wallId: 'Left Wall', end: 'start' });
+  });
+
+  it('keeps lower modules out of the back-wall corner zone for left L-shaped layouts', () => {
+    const input = makeInput({
+      layoutType: 'l-shaped',
+      walls: [
+        { id: 'Back Wall', length: 2800, anchors: [] },
+        { id: 'Left Wall', length: 1800, anchors: [] },
+      ],
+      corners: [{
+        id: 'corner-0',
+        wallA: { wallId: 'Back Wall', end: 'start' },
+        wallB: { wallId: 'Left Wall', end: 'start' },
+        angle: 90,
+      }],
+      roomDepth: 1800,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    for (const variant of variants) {
+      const backWallLower = variant.plan.walls[0].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Back Wall',
+      );
+      const sideWallLower = variant.plan.walls[1].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Left Wall',
+      );
+
+      expect(backWallLower.length).toBeGreaterThan(0);
+      expect(sideWallLower.length).toBeGreaterThan(0);
+      expect(Math.min(...backWallLower.map((m) => m.x))).toBeGreaterThanOrEqual(600);
+      expect(Math.min(...sideWallLower.map((m) => m.x))).toBeGreaterThanOrEqual(600);
+    }
+  });
+
+  it('keeps lower modules out of the back-wall corner zone for right L-shaped layouts', () => {
+    const input = makeInput({
+      layoutType: 'l-shaped',
+      walls: [
+        { id: 'Back Wall', length: 2800, anchors: [] },
+        { id: 'Right Wall', length: 1800, anchors: [] },
+      ],
+      corners: [{
+        id: 'corner-0',
+        wallA: { wallId: 'Back Wall', end: 'end' },
+        wallB: { wallId: 'Right Wall', end: 'start' },
+        angle: 90,
+      }],
+      roomDepth: 1800,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    for (const variant of variants) {
+      const backWallLower = variant.plan.walls[0].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Back Wall',
+      );
+      const sideWallLower = variant.plan.walls[1].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Right Wall',
+      );
+
+      expect(backWallLower.length).toBeGreaterThan(0);
+      expect(sideWallLower.length).toBeGreaterThan(0);
+      expect(Math.max(...backWallLower.map((m) => m.x + m.width))).toBeLessThanOrEqual(2200);
+      expect(Math.min(...sideWallLower.map((m) => m.x))).toBeGreaterThanOrEqual(600);
+    }
+  });
+
+  it('uses the selected lower corner cabinet width for L-shaped reservation', () => {
+    const lowerCorner = makeCabinet({
+      id: 5001,
+      article: 'СУ 1100',
+      type: CabinetType.LOWER,
+      width: 1100,
+      depth: 600,
+      is_corner: true,
+    });
+    const fallbackLowerCorner = makeCabinet({
+      id: 5002,
+      article: 'СУ 800',
+      type: CabinetType.LOWER,
+      width: 800,
+      depth: 600,
+      is_corner: true,
+    });
+
+    const input = makeInput({
+      layoutType: 'l-shaped',
+      modules: [...standardModules(), fallbackLowerCorner, lowerCorner],
+      walls: [
+        { id: 'Back Wall', length: 3700, anchors: [] },
+        { id: 'Left Wall', length: 1800, anchors: [] },
+      ],
+      corners: [{
+        id: 'corner-0',
+        wallA: { wallId: 'Back Wall', end: 'start' },
+        wallB: { wallId: 'Left Wall', end: 'start' },
+        angle: 90,
+      }],
+      roomWidth: 3700,
+      roomDepth: 1800,
+      selectedLowerCornerCabinetId: 5001,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    for (const variant of variants) {
+      const backWallLower = variant.plan.walls[0].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Back Wall',
+      );
+      const sideWallLower = variant.plan.walls[1].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Left Wall',
+      );
+
+      expect(Math.min(...backWallLower.map((m) => m.x))).toBeGreaterThanOrEqual(1100);
+      expect(Math.min(...sideWallLower.map((m) => m.x))).toBeGreaterThanOrEqual(1100);
+      expect(variant.plan.cornerModules.some((m) => m.article === 'СУ 1100')).toBe(true);
+    }
+  });
+
+  it('adds the selected upper corner cabinet as a separate corner module', () => {
+    const lowerCorner = makeCabinet({
+      id: 5101,
+      article: 'СУ 900',
+      type: CabinetType.LOWER,
+      width: 900,
+      depth: 600,
+      is_corner: true,
+    });
+    const upperCorner = makeCabinet({
+      id: 5102,
+      article: 'ВУ 900',
+      type: CabinetType.UPPER,
+      width: 900,
+      height: 720,
+      depth: 320,
+      is_corner: true,
+    });
+
+    const input = makeInput({
+      layoutType: 'l-shaped',
+      modules: [...standardModules(), lowerCorner, upperCorner],
+      walls: [
+        { id: 'Back Wall', length: 3200, anchors: [] },
+        { id: 'Left Wall', length: 1800, anchors: [] },
+      ],
+      corners: [{
+        id: 'corner-0',
+        wallA: { wallId: 'Back Wall', end: 'start' },
+        wallB: { wallId: 'Left Wall', end: 'start' },
+        angle: 90,
+      }],
+      roomWidth: 3200,
+      roomDepth: 1800,
+      selectedLowerCornerCabinetId: 5101,
+      selectedUpperCornerCabinetId: 5102,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    for (const variant of variants) {
+      const upperCornerModule = variant.plan.cornerModules.find((m) => m.article === 'ВУ 900');
+      expect(upperCornerModule).toBeDefined();
+      expect(upperCornerModule?.yOffset).toBe(1400);
+    }
+  });
+
+  it('keeps L-shaped tall modules on the back wall when fridge side is left', () => {
+    const lowerCorner = makeCabinet({
+      id: 5201,
+      article: 'СУ 600',
+      type: CabinetType.LOWER,
+      width: 600,
+      depth: 600,
+      is_corner: true,
+    });
+    const fridge = makeCabinet({
+      id: 5202,
+      article: 'Х 600',
+      type: CabinetType.TALL,
+      kind: CabinetKind.FRIDGE,
+      width: 600,
+      height: 2100,
+      depth: 600,
+    });
+    const penal = makeCabinet({
+      id: 5203,
+      article: 'П 300',
+      type: CabinetType.TALL,
+      kind: CabinetKind.PENAL,
+      width: 300,
+      height: 2100,
+      depth: 600,
+    });
+
+    const input = makeInput({
+      layoutType: 'l-shaped',
+      modules: [...standardModules(), lowerCorner, fridge, penal],
+      walls: [
+        { id: 'Back Wall', length: 5000, anchors: [] },
+        { id: 'Left Wall', length: 2200, anchors: [] },
+      ],
+      corners: [{
+        id: 'corner-0',
+        wallA: { wallId: 'Back Wall', end: 'start' },
+        wallB: { wallId: 'Left Wall', end: 'start' },
+        angle: 90,
+      }],
+      roomWidth: 5000,
+      roomDepth: 2200,
+      fridgeSide: 'left',
+      selectedLowerCornerCabinetId: 5201,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    for (const variant of variants) {
+      const backTall = variant.plan.walls[0].modules.filter(
+        (m) => m.type === 'tall' && m.wallId === 'Back Wall',
+      );
+      const sideTall = variant.plan.walls[1].modules.filter(
+        (m) => m.type === 'tall' && m.wallId === 'Left Wall',
+      );
+      const backLower = variant.plan.walls[0].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Back Wall',
+      );
+
+      expect(backTall.map((m) => m.article).sort()).toEqual(['П 300', 'Х 600']);
+      expect(sideTall).toHaveLength(0);
+      expect(Math.min(...backTall.map((m) => m.x))).toBeGreaterThanOrEqual(600);
+      expect(Math.min(...backLower.map((m) => m.x))).toBeGreaterThanOrEqual(1500);
+    }
+  });
+
+  it('keeps L-shaped tall modules on the side wall when fridge side is right', () => {
+    const lowerCorner = makeCabinet({
+      id: 5301,
+      article: 'СУ 600',
+      type: CabinetType.LOWER,
+      width: 600,
+      depth: 600,
+      is_corner: true,
+    });
+    const fridge = makeCabinet({
+      id: 5302,
+      article: 'Х 600',
+      type: CabinetType.TALL,
+      kind: CabinetKind.FRIDGE,
+      width: 600,
+      height: 2100,
+      depth: 600,
+    });
+    const penal = makeCabinet({
+      id: 5303,
+      article: 'П 300',
+      type: CabinetType.TALL,
+      kind: CabinetKind.PENAL,
+      width: 300,
+      height: 2100,
+      depth: 600,
+    });
+
+    const input = makeInput({
+      layoutType: 'l-shaped',
+      modules: [...standardModules(), lowerCorner, fridge, penal],
+      walls: [
+        { id: 'Back Wall', length: 5000, anchors: [] },
+        { id: 'Right Wall', length: 5000, anchors: [] },
+      ],
+      corners: [{
+        id: 'corner-0',
+        wallA: { wallId: 'Back Wall', end: 'end' },
+        wallB: { wallId: 'Right Wall', end: 'start' },
+        angle: 90,
+      }],
+      roomWidth: 5000,
+      roomDepth: 5000,
+      fridgeSide: 'right',
+      selectedLowerCornerCabinetId: 5301,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    for (const variant of variants) {
+      const backTall = variant.plan.walls[0].modules.filter(
+        (m) => m.type === 'tall' && m.wallId === 'Back Wall',
+      );
+      const sideTall = variant.plan.walls[1].modules.filter(
+        (m) => m.type === 'tall' && m.wallId === 'Right Wall',
+      );
+      const sideLower = variant.plan.walls[1].modules.filter(
+        (m) => (m.type === 'lower' || m.type === 'filler') && m.wallId === 'Right Wall',
+      );
+
+      expect(backTall).toHaveLength(0);
+      expect(sideTall.map((m) => m.article).sort()).toEqual(['П 300', 'Х 600']);
+      expect(Math.min(...sideTall.map((m) => m.x))).toBeGreaterThanOrEqual(4100);
+      expect(Math.max(...sideLower.map((m) => m.x + m.width))).toBeLessThanOrEqual(4100);
+    }
+  });
 
   it('generates variants for a simple wall with no anchors', () => {
     const input = makeInput();
@@ -461,6 +795,120 @@ describe('planKitchen integration', () => {
       );
       expect(panel).toBeUndefined();
     }
+  });
+
+  it('prefers placing СБ 200 into a matching left filler and aligns ВП 200 above it', () => {
+    const sinkModule = makeCabinet({
+      width: 600, article: 'СМ 600',
+      kind: CabinetKind.SINK, subtype: CabinetSubtype.SINK_BASE,
+    });
+    const drawerUnit = makeCabinet({
+      width: 400, article: 'СЯШ 400',
+      kind: CabinetKind.DRAWER_UNIT, subtype: CabinetSubtype.DRAWER_ONLY,
+    });
+    const sidePanel = makeCabinet({
+      width: 200, article: 'СБ 200',
+      kind: CabinetKind.DOOR, subtype: CabinetSubtype.STANDARD,
+    });
+    const upper200 = makeCabinet({
+      width: 200, article: 'ВП 200',
+      type: CabinetType.UPPER,
+      kind: CabinetKind.DOOR,
+    });
+    const upper600 = makeCabinet({
+      width: 600, article: 'ВП 600',
+      type: CabinetType.UPPER,
+      kind: CabinetKind.DOOR,
+    });
+    const input = makeInput({
+      modules: [
+        makeCabinet({ width: 300, article: 'W300' }),
+        makeCabinet({ width: 400, article: 'W400' }),
+        makeCabinet({ width: 500, article: 'W500' }),
+        makeCabinet({ width: 600, article: 'W600' }),
+        sinkModule,
+        drawerUnit,
+        sidePanel,
+        upper200,
+        upper600,
+      ],
+      sinkModuleWidth: 600,
+      drawerHousingWidth: 400,
+      useSidePanel200: true,
+      walls: [{
+        id: 'Back Wall',
+        length: 2800,
+        anchors: [
+          { type: 'sink', position: 0, width: 600 },
+          { type: 'cooktop', position: 1200, width: 600 },
+        ],
+      }],
+    });
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    const matched = variants.some((variant) => {
+      const sidePanelLeftOfCooktop = variant.plan.walls[0].modules.find(
+        (m) => m.article.startsWith('СБ') && m.x === 1000,
+      );
+      const upper200Above = variant.plan.walls[0].modules.find(
+        (m) => m.type === 'upper' && m.width === 200 && m.x === 1000,
+      );
+      return sidePanelLeftOfCooktop && upper200Above;
+    });
+
+    expect(matched).toBe(true);
+  });
+
+  it('can shift anchor even when original layout has no fillers if overall score improves', () => {
+    const sinkModule = makeCabinet({
+      width: 600, article: 'СМ 600',
+      kind: CabinetKind.SINK, subtype: CabinetSubtype.SINK_BASE,
+    });
+    const drawerUnit = makeCabinet({
+      width: 400, article: 'СЯШ 400',
+      kind: CabinetKind.DRAWER_UNIT, subtype: CabinetSubtype.DRAWER_ONLY,
+    });
+    const upper600 = makeCabinet({
+      width: 600, article: 'ВП 600',
+      type: CabinetType.UPPER,
+      kind: CabinetKind.DOOR,
+    });
+    const input = makeInput({
+      roomWidth: 3300,
+      modules: [
+        makeCabinet({ width: 400, article: 'W400' }),
+        makeCabinet({ width: 500, article: 'W500' }),
+        makeCabinet({ width: 600, article: 'W600' }),
+        upper600,
+        sinkModule,
+        drawerUnit,
+      ],
+      sinkModuleWidth: 600,
+      drawerHousingWidth: 400,
+      walls: [{
+        id: 'Back Wall',
+        length: 3300,
+        anchors: [
+          { type: 'sink', position: 0, width: 600 },
+          { type: 'cooktop', position: 1400, width: 600 },
+        ],
+      }],
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    const topVariant = variants[0].plan;
+    expect(topVariant.anchorShifts?.length).toBeGreaterThan(0);
+    expect(topVariant.anchorShifts?.some(
+      (shift) => shift.anchorType === 'cooktop' && shift.newPosition === 1500,
+    )).toBe(true);
+
+    const lowerFillers = topVariant.walls[0].modules.filter(
+      (m) => m.type === 'filler' && m.depth === 470,
+    );
+    expect(lowerFillers).toHaveLength(0);
   });
 
   it('produces no gaps — all segments have at least one module or filler', () => {

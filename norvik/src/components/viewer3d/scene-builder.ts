@@ -21,18 +21,18 @@ import {
 import { UPPER_HEIGHT, UPPER_DEPTH, UPPER_Y, WALL_THICKNESS, BASEBOARD_HEIGHT, BACKSPLASH_HEIGHT } from '@/algorithm/constants';
 import { gltfLoader, proxyGlbUrl, enableShadows } from './three-utils';
 import { disposeObject } from './dispose';
+import {
+  getLShapedSideWallLayout,
+  getSideWallPlacement,
+  type RoomConfig,
+} from './scene-layout';
 
 export interface WallAnchors {
   wallId: string;
   anchors: Anchor[];
 }
 
-export interface RoomConfig {
-  roomWidth: number;  // mm
-  roomDepth: number;  // mm
-  wallHeight: number; // mm
-  lShapedSide?: 'left' | 'right';
-}
+export type { RoomConfig } from './scene-layout';
 // ── Room geometry ───────────────────────────────────────────
 function createFloor(roomWidth: number, roomDepth: number): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(mm(roomWidth), mm(roomDepth));
@@ -191,8 +191,8 @@ function createLabel(text: string, x: number, y: number, z: number, bgColor?: st
 /**
  * Create the 3D object for a module based on its type.
  */
-function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
-  if (mod.type === 'corner') return true;
+function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype' | 'yOffset'>): boolean {
+  if (mod.type === 'corner') return mod.yOffset == null;
   if (mod.type !== 'lower') return false;
 
   return !(
@@ -202,8 +202,8 @@ function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subt
   );
 }
 
-function canReuseGlbCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype'>): boolean {
-  return mod.type === 'corner' || mod.kind === CabinetKind.DOOR || mod.kind === CabinetKind.DRAWER_UNIT;
+function canReuseGlbCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subtype' | 'yOffset'>): boolean {
+  return (mod.type === 'corner' && mod.yOffset == null) || mod.kind === CabinetKind.DOOR || mod.kind === CabinetKind.DRAWER_UNIT;
 }
 
 function shouldApplyFacade(mod: Pick<PlacedModule, 'type' | 'kind'>): boolean {
@@ -501,36 +501,48 @@ function placeBackWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
 }
 
 /**
- * Place a module on the left wall (along Z axis, rotated -90°).
+ * Place a module on the left wall (along Z axis, rotated +90° toward room).
  */
-function placeLeftWallModule(mod: PlacedModule): THREE.Group | THREE.Mesh {
+function placeLeftWallModule(mod: PlacedModule, roomWidthMm: number): THREE.Group | THREE.Mesh {
   const zPos = mm(mod.x + mod.width / 2);
   const { object, depth } = createModuleObject(mod);
+  const placement = getSideWallPlacement({
+    side: 'left',
+    roomWidth: mm(roomWidthMm),
+    distanceFromWall: mod.type === 'filler' ? 0 : mm(depth) / 2,
+    centerAlongWall: zPos,
+  });
 
   if (mod.type === 'filler') {
-    object.position.set(0, 0, zPos);
+    object.position.set(placement.x, 0, placement.z);
   } else {
-    object.position.set(mm(depth) / 2, getModuleY(mod), zPos);
+    object.position.set(placement.x, getModuleY(mod), placement.z);
   }
 
-  object.rotation.y = -Math.PI / 2;
+  object.rotation.y = placement.rotationY;
   return object;
 }
 
 /**
- * Place a module on the right wall (along Z axis, rotated +90°).
+ * Place a module on the right wall (along Z axis, rotated -90° toward room).
  */
 function placeRightWallModule(mod: PlacedModule, roomWidthMm: number): THREE.Group | THREE.Mesh {
   const zPos = mm(mod.x + mod.width / 2);
   const { object, depth } = createModuleObject(mod);
+  const placement = getSideWallPlacement({
+    side: 'right',
+    roomWidth: mm(roomWidthMm),
+    distanceFromWall: mod.type === 'filler' ? 0 : mm(depth) / 2,
+    centerAlongWall: zPos,
+  });
 
   if (mod.type === 'filler') {
-    object.position.set(mm(roomWidthMm), 0, zPos);
+    object.position.set(placement.x, 0, placement.z);
   } else {
-    object.position.set(mm(roomWidthMm) - mm(depth) / 2, getModuleY(mod), zPos);
+    object.position.set(placement.x, getModuleY(mod), placement.z);
   }
 
-  object.rotation.y = Math.PI / 2;
+  object.rotation.y = placement.rotationY;
   return object;
 }
 
@@ -670,7 +682,7 @@ async function loadGlbModule(
   wrapper.add(result.model);
   if (mod.type === 'lower' && mod.kind !== "plate" && shouldIncludeCountertop(mod) && glbCountertopMatches === 0) {
     wrapper.add(createLowerCountertop(mod.width, mod.depth, mod.height));
-  } else if (mod.type === 'corner' && glbCountertopMatches === 0) {
+  } else if (mod.type === 'corner' && shouldIncludeCountertop(mod) && glbCountertopMatches === 0) {
     wrapper.add(createCornerCountertop(mod.width, mod.depth, mod.height));
   }
 
@@ -686,12 +698,23 @@ async function loadGlbModule(
       wrapper.position.set(0, y, 0);
     }
   } else if (wall === 'left') {
-    wrapper.position.set(result.scaledSize.z / 2, y, mm(mod.x + mod.width / 2));
-    wrapper.rotation.y = -Math.PI / 2;
+    const placement = getSideWallPlacement({
+      side: 'left',
+      roomWidth: mm(roomWidthMm ?? 0),
+      distanceFromWall: result.scaledSize.z / 2,
+      centerAlongWall: mm(mod.x + mod.width / 2),
+    });
+    wrapper.position.set(placement.x, y, placement.z);
+    wrapper.rotation.y = placement.rotationY;
   } else if (wall === 'right') {
-    const rwMm = roomWidthMm ?? 0;
-    wrapper.position.set(mm(rwMm) - result.scaledSize.z / 2, y, mm(mod.x + mod.width / 2));
-    wrapper.rotation.y = Math.PI / 2;
+    const placement = getSideWallPlacement({
+      side: 'right',
+      roomWidth: mm(roomWidthMm ?? 0),
+      distanceFromWall: result.scaledSize.z / 2,
+      centerAlongWall: mm(mod.x + mod.width / 2),
+    });
+    wrapper.position.set(placement.x, y, placement.z);
+    wrapper.rotation.y = placement.rotationY;
   } else {
     wrapper.position.set(mm(mod.x + mod.width / 2), y, result.scaledSize.z / 2);
     wrapper.rotation.y = Math.PI;
@@ -703,7 +726,8 @@ async function loadApplianceGlb(
   anchor: Anchor,
   placeholderName: string,
   scene: THREE.Scene,
-  wall: 'back' | 'left',
+  wall: 'back' | 'left' | 'right',
+  roomWidthMm?: number,
 ): Promise<void> {
   if (!anchor.glbFile) return;
 
@@ -719,8 +743,23 @@ async function loadApplianceGlb(
   const depthZ = mm(280);
 
   if (wall === 'left') {
-    wrapper.position.set(depthZ, 0, mm(anchor.position + anchor.width / 2));
-    wrapper.rotation.y = -Math.PI / 2;
+    const placement = getSideWallPlacement({
+      side: 'left',
+      roomWidth: mm(roomWidthMm ?? 0),
+      distanceFromWall: depthZ,
+      centerAlongWall: mm(anchor.position + anchor.width / 2),
+    });
+    wrapper.position.set(placement.x, 0, placement.z);
+    wrapper.rotation.y = placement.rotationY;
+  } else if (wall === 'right') {
+    const placement = getSideWallPlacement({
+      side: 'right',
+      roomWidth: mm(roomWidthMm ?? 0),
+      distanceFromWall: depthZ,
+      centerAlongWall: mm(anchor.position + anchor.width / 2),
+    });
+    wrapper.position.set(placement.x, 0, placement.z);
+    wrapper.rotation.y = placement.rotationY;
   } else {
     wrapper.position.set(mm(anchor.position + anchor.width / 2), 0, depthZ);
     wrapper.rotation.y = Math.PI;
@@ -748,6 +787,15 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
   // Floor
   scene.add(createFloor(roomWidth, roomDepth));
 
+  // ── L-shape info (needed early for wall visibility) ──
+  const isLShaped = plan.walls.length >= 2;
+  const isRightSide = roomConfig.lShapedSide === 'right';
+  const activeSideWallLayout = isLShaped
+    ? getLShapedSideWallLayout(roomConfig)
+    : null;
+  const activeSideWallLength = activeSideWallLayout?.length ?? roomDepth;
+  const activeSideWallCenterZ = mm(activeSideWallLayout?.centerZ ?? roomDepth / 2);
+
   // Walls — positioned so inner face aligns with room boundary
   const halfT = mm(WT) / 2;
 
@@ -762,27 +810,51 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
     ),
   );
 
-  // Left wall: inner face at x=0, wall center at x = -halfT
-  scene.add(
-    createWallMesh(
-      roomDepth + WT, wallHeight,
-      new THREE.Vector3(-halfT, wh / 2, rd / 2),
-      new THREE.Euler(0, Math.PI / 2, 0),
-      'left-wall',
-      '+z',
-    ),
-  );
+  // Left wall: for L-shaped left, render only the configured visible leg
+  if (isLShaped && !isRightSide) {
+    scene.add(
+      createWallMesh(
+        activeSideWallLength, wallHeight,
+        new THREE.Vector3(-halfT, wh / 2, activeSideWallCenterZ),
+        new THREE.Euler(0, Math.PI / 2, 0),
+        'left-wall',
+        '+z',
+      ),
+    );
+  } else {
+    scene.add(
+      createWallMesh(
+        roomDepth + WT, wallHeight,
+        new THREE.Vector3(-halfT, wh / 2, rd / 2),
+        new THREE.Euler(0, Math.PI / 2, 0),
+        'left-wall',
+        '+z',
+      ),
+    );
+  }
 
-  // Right wall: inner face at x=rw, wall center at x = rw + halfT
-  scene.add(
-    createWallMesh(
-      roomDepth + WT, wallHeight,
-      new THREE.Vector3(rw + halfT, wh / 2, rd / 2),
-      new THREE.Euler(0, -Math.PI / 2, 0),
-      'right-wall',
-      '+z',
-    ),
-  );
+  // Right wall: for L-shaped right, render only the configured visible leg
+  if (isLShaped && isRightSide) {
+    scene.add(
+      createWallMesh(
+        activeSideWallLength, wallHeight,
+        new THREE.Vector3(rw + halfT, wh / 2, activeSideWallCenterZ),
+        new THREE.Euler(0, -Math.PI / 2, 0),
+        'right-wall',
+        '+z',
+      ),
+    );
+  } else {
+    scene.add(
+      createWallMesh(
+        roomDepth + WT, wallHeight,
+        new THREE.Vector3(rw + halfT, wh / 2, rd / 2),
+        new THREE.Euler(0, -Math.PI / 2, 0),
+        'right-wall',
+        '+z',
+      ),
+    );
+  }
 
   // Baseboards — flush against inner wall face
   const bbH = mm(40); // half baseboard height
@@ -794,17 +866,33 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
     new THREE.Euler(0, 0, 0),
   ));
   // Left wall baseboard
-  scene.add(createBaseboard(
-    roomDepth,
-    new THREE.Vector3(bbD, bbH, rd / 2),
-    new THREE.Euler(0, Math.PI / 2, 0),
-  ));
+  if (isLShaped && !isRightSide) {
+    scene.add(createBaseboard(
+      activeSideWallLength,
+      new THREE.Vector3(bbD, bbH, activeSideWallCenterZ),
+      new THREE.Euler(0, Math.PI / 2, 0),
+    ));
+  } else {
+    scene.add(createBaseboard(
+      roomDepth,
+      new THREE.Vector3(bbD, bbH, rd / 2),
+      new THREE.Euler(0, Math.PI / 2, 0),
+    ));
+  }
   // Right wall baseboard
-  scene.add(createBaseboard(
-    roomDepth,
-    new THREE.Vector3(rw - bbD, bbH, rd / 2),
-    new THREE.Euler(0, Math.PI / 2, 0),
-  ));
+  if (isLShaped && isRightSide) {
+    scene.add(createBaseboard(
+      activeSideWallLength,
+      new THREE.Vector3(rw - bbD, bbH, activeSideWallCenterZ),
+      new THREE.Euler(0, Math.PI / 2, 0),
+    ));
+  } else {
+    scene.add(createBaseboard(
+      roomDepth,
+      new THREE.Vector3(rw - bbD, bbH, rd / 2),
+      new THREE.Euler(0, Math.PI / 2, 0),
+    ));
+  }
 
   // Backsplash (tile strip behind countertop on back wall)
   const backsplashY = mm(UPPER_Y - 100);
@@ -817,9 +905,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
   // ── Determine which walls go where ──
   // walls[0] = back wall (along X), walls[1] = side wall (along Z)
-  const isLShaped = plan.walls.length >= 2;
-  const sideWallSide = roomConfig.lShapedSide ?? 'left';
-  const isRightSide = sideWallSide === 'right';
+  // (isLShaped, sideWallSide, isRightSide computed earlier for wall visibility)
 
   // Collect all placed modules with their wall context for GLB loading
   const glbCandidates: { mod: PlacedModule; wall: 'back' | 'left' | 'right' | 'corner' }[] = [];
@@ -840,7 +926,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
         if (isSideWall) {
           scene.add(isRightSide
             ? placeRightWallModule(mod, roomWidth)
-            : placeLeftWallModule(mod));
+            : placeLeftWallModule(mod, roomWidth));
         } else {
           scene.add(placeBackWallModule(mod));
         }
@@ -851,9 +937,21 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
         const labelY = getModuleLabelY(mod);
         const depthZ = getModuleLabelDepth(mod);
         if (isSideWall && !isRightSide) {
-          scene.add(createLabel(mod.article, depthZ, labelY, mm(mod.x + mod.width / 2)));
+          const placement = getSideWallPlacement({
+            side: 'left',
+            roomWidth: rw,
+            distanceFromWall: depthZ,
+            centerAlongWall: mm(mod.x + mod.width / 2),
+          });
+          scene.add(createLabel(mod.article, placement.x, labelY, placement.z));
         } else if (isSideWall && isRightSide) {
-          scene.add(createLabel(mod.article, mm(roomWidth) - depthZ, labelY, mm(mod.x + mod.width / 2)));
+          const placement = getSideWallPlacement({
+            side: 'right',
+            roomWidth: rw,
+            distanceFromWall: depthZ,
+            centerAlongWall: mm(mod.x + mod.width / 2),
+          });
+          scene.add(createLabel(mod.article, placement.x, labelY, placement.z));
         } else {
           scene.add(createLabel(mod.article, mm(mod.x + mod.width / 2), labelY, depthZ));
         }
@@ -875,13 +973,15 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
           cornerMod.width,
           cornerMod.depth,
           cornerMod.height,
+          { includeCountertop: shouldIncludeCountertop(cornerMod) },
         );
+        const cornerY = getModuleY(cornerMod);
 
         if (isRightSide) {
-          cornerGroup.position.set(rw, 0, 0);
+          cornerGroup.position.set(rw, cornerY, 0);
           cornerGroup.rotation.y = -Math.PI / 2;
         } else {
-          cornerGroup.position.set(0, 0, 0);
+          cornerGroup.position.set(0, cornerY, 0);
         }
         cornerGroup.userData = { moduleId: cornerMod.id, type: 'corner' };
         scene.add(cornerGroup);
@@ -889,7 +989,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
       // Corner label
       if (cornerMod.article) {
-        const labelY = mm(cornerMod.height) + LABEL_PAD;
+        const labelY = getModuleY(cornerMod) + mm(cornerMod.height) + LABEL_PAD;
         if (isRightSide) {
           scene.add(createLabel(cornerMod.article, rw - mm(cornerMod.width / 2), labelY, mm(cornerMod.depth / 2)));
         } else {
@@ -904,16 +1004,16 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
     if (isRightSide) {
       scene.add(
         createBacksplash(
-          roomDepth,
-          new THREE.Vector3(rw - mm(2), backsplashY, rd / 2),
+          activeSideWallLength,
+          new THREE.Vector3(rw - mm(2), backsplashY, activeSideWallCenterZ),
           new THREE.Euler(0, -Math.PI / 2, 0),
         ),
       );
     } else {
       scene.add(
         createBacksplash(
-          roomDepth,
-          new THREE.Vector3(mm(2), backsplashY, rd / 2),
+          activeSideWallLength,
+          new THREE.Vector3(mm(2), backsplashY, activeSideWallCenterZ),
           new THREE.Euler(0, Math.PI / 2, 0),
         ),
       );
@@ -924,12 +1024,12 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
   // ── Anchor appliance GLBs (sink, cooktop) ──
   // Cabinet bodies are placed by the algorithm (СМ / ПМ). Queue anchor GLBs if available.
-  const applianceGlbQueue: { anchor: Anchor; name: string; wall: 'back' | 'left' }[] = [];
+  const applianceGlbQueue: { anchor: Anchor; name: string; wall: 'back' | 'left' | 'right' }[] = [];
 
   if (wallAnchors && wallAnchors.length > 0) {
     for (let wi = 0; wi < wallAnchors.length; wi++) {
       const wa = wallAnchors[wi];
-      const isLeftWall = isLShaped && wi === 1;
+      const isSideWall = isLShaped && wi === 1;
 
       for (const anchor of wa.anchors) {
         const applianceName = `appliance-${anchor.type}-${wi}`;
@@ -941,7 +1041,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
           applianceGlbQueue.push({
             anchor,
             name: applianceName,
-            wall: isLeftWall ? 'left' : 'back',
+            wall: isSideWall ? (isRightSide ? 'right' : 'left') : 'back',
           });
         }
       }
@@ -959,7 +1059,7 @@ export function buildScene(plan: KitchenPlan, roomConfig: RoomConfig, wallAnchor
 
     // Load appliance GLBs from catalog, replacing procedural placeholders
     const appliancePromises = applianceGlbQueue.map(({ anchor, name, wall }) =>
-      loadApplianceGlb(anchor, name, scene, wall),
+      loadApplianceGlb(anchor, name, scene, wall, roomWidth),
     );
 
     await Promise.all([...cabinetPromises, ...appliancePromises]);

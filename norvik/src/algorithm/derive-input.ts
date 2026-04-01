@@ -21,6 +21,7 @@ export interface KitchenStoreState {
 
   /** Layout type */
   layoutType: LayoutType;
+  lShapedSide?: 'left' | 'right';
 
   /** Wall configurations */
   walls: WallConfig[];
@@ -57,19 +58,31 @@ export interface KitchenStoreState {
 
   /** Selected standalone stove cabinet ID (when useInbuiltStove = false) */
   selectedStoveId?: number | null;
+
+  /** Selected lower corner cabinet for L-shaped layouts */
+  selectedLowerCornerCabinetId?: number | null;
+
+  /** Selected upper corner cabinet for L-shaped layouts */
+  selectedUpperCornerCabinetId?: number | null;
 }
 
 /**
  * Derive corner junctions from layout type and wall list.
  *
- * L-shaped: wall[0].end meets wall[1].start at 90°.
+ * L-shaped:
+ * - left  => wall[0].start meets wall[1].start
+ * - right => wall[0].end meets wall[1].start
  * Linear / other: no corners.
  */
-function deriveCorners(layoutType: LayoutType, walls: WallConfig[]): CornerJunction[] {
+function deriveCorners(
+  layoutType: LayoutType,
+  walls: WallConfig[],
+  lShapedSide: 'left' | 'right' = 'left',
+): CornerJunction[] {
   if (layoutType === 'l-shaped' && walls.length >= 2) {
     return [{
       id: 'corner-0',
-      wallA: { wallId: walls[0].id, end: 'end' },
+      wallA: { wallId: walls[0].id, end: lShapedSide === 'left' ? 'start' : 'end' },
       wallB: { wallId: walls[1].id, end: 'start' },
       angle: 90,
     }];
@@ -96,7 +109,7 @@ export function deriveInput(state: KitchenStoreState): PlannerInput {
 
   return {
     walls,
-    corners: deriveCorners(state.layoutType, walls),
+    corners: deriveCorners(state.layoutType, walls, state.lShapedSide),
     modules: state.availableCabinets,
     goldenRules: state.goldenRules ?? [],
     roomWidth: state.roomWidth,
@@ -111,5 +124,7 @@ export function deriveInput(state: KitchenStoreState): PlannerInput {
     fridgeSide: state.fridgeSide ?? 'right',
     useInbuiltStove: state.useInbuiltStove ?? true,
     selectedStoveId: state.selectedStoveId ?? null,
+    selectedLowerCornerCabinetId: state.selectedLowerCornerCabinetId ?? null,
+    selectedUpperCornerCabinetId: state.selectedUpperCornerCabinetId ?? null,
   };
 }
