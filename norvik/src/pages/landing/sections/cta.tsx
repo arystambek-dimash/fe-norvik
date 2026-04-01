@@ -41,16 +41,16 @@ export function Cta() {
             <div className="mx-auto mb-10 h-px w-24 bg-gradient-to-r from-transparent via-brass/50 to-transparent" />
 
             <h2 className="font-display text-3xl tracking-tight text-white md:text-5xl">
-              Ready to transform your
+              Готовы преобразить свой
               <br />
               <span className="bg-gradient-to-r from-brass to-yellow-500 bg-clip-text text-transparent">
-                kitchen design?
+                кухонный дизайн?
               </span>
             </h2>
 
             <p className="mx-auto mt-5 max-w-lg text-white/60">
-              Join hundreds of designers and studios already using Norvik to
-              create exceptional kitchen spaces.
+              Присоединяйтесь к сотням дизайнеров и студий, которые уже используют Norvik
+              для создания исключительных кухонных пространств.
             </p>
 
             {/* Dual CTA buttons */}
@@ -60,7 +60,7 @@ export function Cta() {
                 className="bg-gradient-to-r from-brass to-yellow-600 text-espresso font-semibold shadow-[0_0_30px_rgba(180,140,60,0.25)] hover:shadow-[0_0_40px_rgba(180,140,60,0.45)]"
                 asChild
               >
-                <Link to={ROUTES.REGISTER}>Get Started — It's Free</Link>
+                <Link to={ROUTES.REGISTER}>Начать — это бесплатно</Link>
               </Button>
               <Button
                 size="lg"
@@ -68,7 +68,7 @@ export function Cta() {
                 className="border-white/20 text-white hover:bg-white/10"
                 asChild
               >
-                <Link to={ROUTES.REGISTER}>Learn More</Link>
+                <Link to={ROUTES.REGISTER}>Узнать больше</Link>
               </Button>
             </div>
 
@@ -88,7 +88,7 @@ export function Cta() {
                 ))}
               </div>
               <span className="text-sm text-white/40">
-                Join 500+ designers
+                Уже 500+ дизайнеров
               </span>
             </div>
           </div>

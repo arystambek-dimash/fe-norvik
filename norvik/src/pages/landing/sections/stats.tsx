@@ -39,10 +39,10 @@ function useCountUp(target: number, duration: number, isActive: boolean) {
 }
 
 const stats = [
-  { numericValue: 10000, suffix: "+", label: "Designs Created" },
-  { numericValue: 500, suffix: "+", label: "Active Users" },
-  { numericValue: 50, suffix: "+", label: "Collections" },
-  { numericValue: 99, suffix: "%", label: "Satisfaction" },
+  { numericValue: 10000, suffix: "+", label: "Проектов создано" },
+  { numericValue: 500, suffix: "+", label: "Активных пользователей" },
+  { numericValue: 50, suffix: "+", label: "Коллекций" },
+  { numericValue: 99, suffix: "%", label: "Удовлетворённость" },
 ];
 
 function StatCard({

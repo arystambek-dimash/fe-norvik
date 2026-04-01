@@ -5,30 +5,30 @@ import { cn } from "@/lib/utils";
 const features = [
   {
     icon: Box,
-    title: "3D Cabinet Configurator",
+    title: "3D-конфигуратор шкафов",
     description:
-      "Design custom cabinet layouts with real-time 3D preview. Adjust dimensions, materials, and finishes with precision.",
+      "Проектируйте индивидуальные планировки шкафов с 3D-предпросмотром в реальном времени. Точно задавайте размеры, материалы и отделку.",
     colSpan: "md:col-span-2",
   },
   {
     icon: BookOpen,
-    title: "Premium Catalog",
+    title: "Премиальный каталог",
     description:
-      "Browse curated collections of high-end cabinet styles, materials, and hardware from leading manufacturers.",
+      "Изучайте подобранные коллекции шкафов премиум-класса, материалов и фурнитуры от ведущих производителей.",
     colSpan: "md:col-span-1",
   },
   {
     icon: Users,
-    title: "Real-Time Collaboration",
+    title: "Совместная работа в реальном времени",
     description:
-      "Work together with your team and clients in shared workspaces. Review, comment, and iterate in real time.",
+      "Работайте вместе с командой и клиентами в общих рабочих пространствах. Обсуждайте, комментируйте и дорабатывайте в реальном времени.",
     colSpan: "md:col-span-1",
   },
   {
     icon: Share2,
-    title: "Export & Share",
+    title: "Экспорт и обмен",
     description:
-      "Generate professional proposals, export detailed specs, and share interactive previews with stakeholders.",
+      "Формируйте профессиональные коммерческие предложения, экспортируйте детальные спецификации и делитесь интерактивными превью с заказчиками.",
     colSpan: "md:col-span-2",
   },
 ];
@@ -85,10 +85,10 @@ export function Features() {
         <div className="mx-auto mb-16 max-w-2xl text-center">
           <div className="mx-auto mb-4 h-0.5 w-12 rounded-full bg-brass" />
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Features
+            Возможности
           </p>
           <h2 className="font-display text-3xl tracking-tight md:text-4xl">
-            Everything you need to design stunning kitchens
+            Всё, что нужно для создания потрясающих кухонь
           </h2>
         </div>
 
