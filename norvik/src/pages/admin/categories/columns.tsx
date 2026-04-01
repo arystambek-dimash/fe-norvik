@@ -11,10 +11,10 @@ interface ColumnActions {
 export function getCategoryColumns({ onEdit, onDelete, catalogName }: ColumnActions): ColumnDef<CategoryRead>[] {
   return [
     { accessorKey: "id", header: "ID", cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span> },
-    { accessorKey: "name", header: "Name" },
+    { accessorKey: "name", header: "Название" },
     {
       accessorKey: "catalog_id",
-      header: "Catalog",
+      header: "Каталог",
       cell: ({ row }) => catalogName(row.original.catalog_id),
     },
     createActionsColumn({ onEdit, onDelete }),
