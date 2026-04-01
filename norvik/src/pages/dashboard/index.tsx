@@ -24,42 +24,42 @@ export default function DashboardPage() {
 
   const mainCards: NavCard[] = [
     {
-      title: "Product Catalogs",
-      description: "Browse and explore cabinet collections and product lines",
+      title: "Каталоги продукции",
+      description: "Просматривайте коллекции шкафов и линейки продукции",
       href: ROUTES.CATALOGS,
       icon: <BookOpen className="h-5 w-5" />,
     },
     {
-      title: "Design Workspaces",
-      description: "Create and manage kitchen layout configurations",
+      title: "Рабочие пространства",
+      description: "Создавайте и управляйте конфигурациями кухонных планировок",
       href: ROUTES.WORKSPACES,
       icon: <PenTool className="h-5 w-5" />,
     },
   ];
 
   const adminCards: NavCard[] = [
-    { title: "Users", description: "Manage team members and access", href: ROUTES.ADMIN_USERS, icon: <Users className="h-5 w-5" /> },
-    { title: "Companies", description: "Manage partner organizations", href: ROUTES.ADMIN_COMPANIES, icon: <Building2 className="h-5 w-5" /> },
-    { title: "Cabinets", description: "Manage product inventory", href: ROUTES.ADMIN_CABINETS, icon: <Package className="h-5 w-5" /> },
-    { title: "Catalogs", description: "Organize product collections", href: ROUTES.ADMIN_CATALOGS, icon: <Layers className="h-5 w-5" /> },
+    { title: "Пользователи", description: "Управление участниками и доступом", href: ROUTES.ADMIN_USERS, icon: <Users className="h-5 w-5" /> },
+    { title: "Компании", description: "Управление партнёрскими организациями", href: ROUTES.ADMIN_COMPANIES, icon: <Building2 className="h-5 w-5" /> },
+    { title: "Шкафы", description: "Управление каталогом продукции", href: ROUTES.ADMIN_CABINETS, icon: <Package className="h-5 w-5" /> },
+    { title: "Каталоги", description: "Организация коллекций продукции", href: ROUTES.ADMIN_CATALOGS, icon: <Layers className="h-5 w-5" /> },
   ];
 
   return (
     <div className="space-y-12">
       {/* Welcome section */}
       <div className="animate-fade-up">
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground/60">Dashboard</p>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground/60">Главная</p>
         <h1 className="mt-2 text-4xl tracking-tight">
-          Welcome back, {user?.first_name}
+          С возвращением, {user?.first_name}
         </h1>
         <p className="mt-3 max-w-lg text-base text-muted-foreground">
-          Your workspace for designing and configuring premium kitchen solutions.
+          Ваше рабочее пространство для проектирования и конфигурации кухонных решений.
         </p>
       </div>
 
       {/* Main cards */}
       <div className="space-y-5">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Quick Access</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Быстрый доступ</h2>
         <div className="grid gap-5 sm:grid-cols-2">
           {mainCards.map((card, i) => (
             <Link key={card.href} to={card.href}>
@@ -83,7 +83,7 @@ export default function DashboardPage() {
       {/* Admin cards */}
       {isAdmin && (
         <div className="space-y-5">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Administration</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Администрирование</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {adminCards.map((card, i) => (
               <Link key={card.href} to={card.href}>

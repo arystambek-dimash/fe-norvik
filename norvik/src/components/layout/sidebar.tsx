@@ -33,11 +33,11 @@ interface NavItem {
 }
 
 const adminNav: NavItem[] = [
-  { label: "Users", href: ROUTES.ADMIN_USERS, icon: <Users className="h-4 w-4" /> },
-  { label: "Companies", href: ROUTES.ADMIN_COMPANIES, icon: <Building2 className="h-4 w-4" /> },
-  { label: "Catalogs", href: ROUTES.ADMIN_CATALOGS, icon: <Layers className="h-4 w-4" /> },
-  { label: "Categories", href: ROUTES.ADMIN_CATEGORIES, icon: <FolderTree className="h-4 w-4" /> },
-  { label: "Cabinets", href: ROUTES.ADMIN_CABINETS, icon: <Box className="h-4 w-4" /> },
+  { label: "Пользователи", href: ROUTES.ADMIN_USERS, icon: <Users className="h-4 w-4" /> },
+  { label: "Компании", href: ROUTES.ADMIN_COMPANIES, icon: <Building2 className="h-4 w-4" /> },
+  { label: "Каталоги", href: ROUTES.ADMIN_CATALOGS, icon: <Layers className="h-4 w-4" /> },
+  { label: "Категории", href: ROUTES.ADMIN_CATEGORIES, icon: <FolderTree className="h-4 w-4" /> },
+  { label: "Шкафы", href: ROUTES.ADMIN_CABINETS, icon: <Box className="h-4 w-4" /> },
 ];
 
 function NavLink({ item }: { item: NavItem }) {
@@ -81,13 +81,13 @@ export function Sidebar() {
   const pendingCount = invitations?.length ?? 0;
 
   const mainNav: NavItem[] = [
-    { label: "Dashboard", href: ROUTES.DASHBOARD, icon: <LayoutDashboard className="h-4 w-4" /> },
-    { label: "Catalogs", href: ROUTES.CATALOGS, icon: <BookOpen className="h-4 w-4" /> },
-    { label: "Workspaces", href: ROUTES.WORKSPACES, icon: <PenTool className="h-4 w-4" /> },
+    { label: "Главная", href: ROUTES.DASHBOARD, icon: <LayoutDashboard className="h-4 w-4" /> },
+    { label: "Каталоги", href: ROUTES.CATALOGS, icon: <BookOpen className="h-4 w-4" /> },
+    { label: "Рабочие пространства", href: ROUTES.WORKSPACES, icon: <PenTool className="h-4 w-4" /> },
     ...(isManager
-      ? [{ label: "Team", href: ROUTES.TEAM, icon: <Users className="h-4 w-4" /> }]
+      ? [{ label: "Команда", href: ROUTES.TEAM, icon: <Users className="h-4 w-4" /> }]
       : []),
-    { label: "Invitations", href: ROUTES.INVITATIONS, icon: <Mail className="h-4 w-4" />, badge: pendingCount },
+    { label: "Приглашения", href: ROUTES.INVITATIONS, icon: <Mail className="h-4 w-4" />, badge: pendingCount },
   ];
 
   return (
@@ -131,7 +131,7 @@ export function Sidebar() {
                       {c.company_name}
                       {c.is_manager && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          Manager
+                          Менеджер
                         </Badge>
                       )}
                     </span>
@@ -151,7 +151,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
         <div className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/30">
-          Navigation
+          Навигация
         </div>
         {mainNav.map((item) => (
           <NavLink key={item.href} item={item} />
@@ -160,7 +160,7 @@ export function Sidebar() {
         {isAdmin && (
           <>
             <div className="mb-3 mt-8 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/30">
-              Administration
+              Администрирование
             </div>
             {adminNav.map((item) => (
               <NavLink key={item.href} item={item} />
