@@ -57,16 +57,16 @@ export default function CabinetsPage() {
         <Button variant="ghost" size="icon" className="rounded-xl hover:bg-primary/8" onClick={() => window.history.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <PageHeader title="Cabinets" description="Browse cabinets in this category" />
+        <PageHeader title="Шкафы" description="Просмотр шкафов в этой категории" />
       </div>
 
       {/* Filters */}
       <div className="animate-fade-up flex flex-wrap items-end gap-4 rounded-xl border border-border/60 bg-card p-5" style={{ animationDelay: "100ms" }}>
         <div className="space-y-2">
-          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Kind</Label>
+          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Вид</Label>
           <Select value={kind} onValueChange={setKind}>
             <SelectTrigger className="w-40 rounded-lg">
-              <SelectValue placeholder="All kinds" />
+              <SelectValue placeholder="Все виды" />
             </SelectTrigger>
             <SelectContent>
               {Object.values(CabinetKind).map((k) => (
@@ -79,10 +79,10 @@ export default function CabinetsPage() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Type</Label>
+          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Тип</Label>
           <Select value={type} onValueChange={setType}>
             <SelectTrigger className="w-40 rounded-lg">
-              <SelectValue placeholder="All types" />
+              <SelectValue placeholder="Все типы" />
             </SelectTrigger>
             <SelectContent>
               {Object.values(CabinetType).map((t) => (
@@ -99,13 +99,13 @@ export default function CabinetsPage() {
             checked={inbuilt ?? false}
             onCheckedChange={(checked) => setInbuilt(checked ? true : undefined)}
           />
-          <Label className="text-sm">Inbuilt only</Label>
+          <Label className="text-sm">Только встроенные</Label>
         </div>
 
         {hasFilters && (
           <Button variant="ghost" size="sm" className="rounded-lg" onClick={clearFilters}>
             <X className="mr-1 h-4 w-4" />
-            Clear
+            Сбросить
           </Button>
         )}
       </div>
@@ -121,7 +121,7 @@ export default function CabinetsPage() {
         <div className="flex h-52 items-center justify-center rounded-xl border border-dashed border-border/60">
           <div className="text-center">
             <Package className="mx-auto h-10 w-10 text-muted-foreground/25" />
-            <p className="mt-3 text-muted-foreground">No cabinets found</p>
+            <p className="mt-3 text-muted-foreground">Шкафы не найдены</p>
           </div>
         </div>
       ) : (
@@ -143,7 +143,7 @@ export default function CabinetsPage() {
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary" className="rounded-md">{cabinet.kind}</Badge>
                   <Badge variant="outline" className="rounded-md">{cabinet.type}</Badge>
-                  {cabinet.inbuilt && <Badge className="rounded-md">Inbuilt</Badge>}
+                  {cabinet.inbuilt && <Badge className="rounded-md">Встроенный</Badge>}
                 </div>
                 {cabinet.description && (
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground line-clamp-2">
