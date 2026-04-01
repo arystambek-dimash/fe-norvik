@@ -31,32 +31,32 @@ export default function WorkspacesListPage() {
       }),
     onSuccess: (workspace) => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      toast.success("Workspace created");
+      toast.success("Пространство создано");
       navigate(`/workspaces/${workspace.id}`);
     },
-    onError: () => toast.error("Failed to create workspace"),
+    onError: () => toast.error("Не удалось создать пространство"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => workspacesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      toast.success("Workspace deleted");
+      toast.success("Пространство удалено");
       setDeleteId(null);
     },
-    onError: () => toast.error("Failed to delete workspace"),
+    onError: () => toast.error("Не удалось удалить пространство"),
   });
 
   return (
     <div className="space-y-8">
       <div className="animate-fade-up">
         <PageHeader
-          title="Workspaces"
-          description="Manage your kitchen layout configurations"
+          title="Рабочие пространства"
+          description="Управление конфигурациями кухонных планировок"
           action={
             <Button className="rounded-lg" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
               <Plus className="mr-2 h-4 w-4" />
-              {createMutation.isPending ? "Creating..." : "New Workspace"}
+              {createMutation.isPending ? "Создание..." : "Новое пространство"}
             </Button>
           }
         />
@@ -71,9 +71,9 @@ export default function WorkspacesListPage() {
       ) : workspaces?.length === 0 ? (
         <div className="flex h-52 flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60">
           <PenTool className="h-10 w-10 text-muted-foreground/25" />
-          <p className="text-muted-foreground">No workspaces yet</p>
+          <p className="text-muted-foreground">Пока нет рабочих пространств</p>
           <Button variant="outline" className="rounded-lg" onClick={() => createMutation.mutate()}>
-            Create your first workspace
+            Создайте своё первое рабочее пространство
           </Button>
         </div>
       ) : (
@@ -86,7 +86,7 @@ export default function WorkspacesListPage() {
               onClick={() => navigate(`/workspaces/${ws.id}`)}
             >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base">Workspace #{ws.id}</CardTitle>
+                <CardTitle className="text-base">Пространство №{ws.id}</CardTitle>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -101,7 +101,7 @@ export default function WorkspacesListPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground">
-                  Created {ws.created_at ? new Date(ws.created_at).toLocaleDateString() : "—"}
+                  Создано {ws.created_at ? new Date(ws.created_at).toLocaleDateString() : "—"}
                 </p>
                 {typeof ws.content?.roomWidth === "number" &&
                   typeof ws.content?.roomDepth === "number" ? (
@@ -110,7 +110,7 @@ export default function WorkspacesListPage() {
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {Object.keys(ws.content).length} keys in content
+                    {Object.keys(ws.content).length} ключей в содержимом
                   </p>
                 )}
               </CardContent>
@@ -123,8 +123,8 @@ export default function WorkspacesListPage() {
         open={deleteId !== null}
         onOpenChange={() => setDeleteId(null)}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
-        title="Delete workspace?"
-        description="This workspace and all its content will be permanently deleted."
+        title="Удалить рабочее пространство?"
+        description="Это рабочее пространство и всё его содержимое будет удалено навсегда."
         isLoading={deleteMutation.isPending}
       />
     </div>

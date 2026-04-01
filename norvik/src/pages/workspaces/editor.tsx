@@ -30,6 +30,16 @@ import type { SolverVariant } from "@/algorithm/types";
 import type { WallAnchors } from "@/components/viewer3d/scene-builder";
 import { ANCHOR_TO_KIND, buildAnchorGlbByKindMap } from "@/algorithm/constants";
 
+/** Russian pluralization: picks the correct form based on count. */
+function pluralize(n: number, one: string, few: string, many: string): string {
+  const mod100 = Math.abs(n) % 100;
+  const mod10 = mod100 % 10;
+  if (mod100 >= 11 && mod100 <= 19) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
 export default function WorkspaceEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -151,11 +161,11 @@ export default function WorkspaceEditorPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       queryClient.invalidateQueries({ queryKey: ["workspaces", workspaceId] });
-      toast.success("Workspace saved");
+      toast.success("Пространство сохранено");
     },
     onError: (err) => {
       console.error("Save workspace error:", err);
-      const msg = (err as any)?.response?.data?.detail || "Failed to save workspace";
+      const msg = (err as any)?.response?.data?.detail || "Не удалось сохранить пространство";
       toast.error(msg);
     },
   });
@@ -229,11 +239,11 @@ export default function WorkspaceEditorPage() {
         const result = planKitchen(input);
         state.setVariants(result);
         toast.success(
-          `Generated ${result.length} variant${result.length !== 1 ? "s" : ""}`,
+          `Сгенерировано ${result.length} ${pluralize(result.length, "вариант", "варианта", "вариантов")}`,
         );
       } catch (err) {
         console.error("Plan generation failed:", err);
-        toast.error("Failed to generate kitchen plan");
+        toast.error("Не удалось сгенерировать план кухни");
       } finally {
         setIsGenerating(false);
       }
@@ -369,13 +379,13 @@ export default function WorkspaceEditorPage() {
     return (
       <div className="flex h-screen items-center justify-center bg-cream/30">
         <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-background p-8 shadow-sm">
-          <p className="text-muted-foreground">Workspace not found</p>
+          <p className="text-muted-foreground">Рабочее пространство не найдено</p>
           <Button
             variant="outline"
             className="rounded-xl"
             onClick={() => navigate("/workspaces")}
           >
-            Back to Workspaces
+            Назад к пространствам
           </Button>
         </div>
       </div>
@@ -399,7 +409,7 @@ export default function WorkspaceEditorPage() {
 
         <div className="flex-1 min-w-0">
           <h1 className="truncate text-sm font-semibold font-display">
-            Workspace #{workspace.id}
+            Пространство №{workspace.id}
           </h1>
           <p className="truncate text-xs text-muted-foreground">
             {roomWidth} &times; {roomDepth} mm &middot;{" "}
@@ -415,7 +425,7 @@ export default function WorkspaceEditorPage() {
             onClick={handleEditWizard}
           >
             <PenTool className="h-3.5 w-3.5" />
-            Edit Setup
+            Изменить настройки
           </Button>
         )}
 
@@ -441,7 +451,7 @@ export default function WorkspaceEditorPage() {
           ) : (
             <Save className="h-4 w-4" />
           )}
-          {saveMutation.isPending ? "Saving..." : "Save"}
+          {saveMutation.isPending ? "Сохранение..." : "Сохранить"}
         </Button>
       </header>
 
@@ -470,7 +480,7 @@ export default function WorkspaceEditorPage() {
               <div className="flex h-full items-center justify-center gap-3 rounded-2xl border border-dashed border-border/60 bg-muted/20">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">
-                  Generating kitchen plans...
+                  Генерация планов кухни...
                 </span>
               </div>
             ) : (
