@@ -19,28 +19,28 @@ export default function InvitationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-invitations"] });
       queryClient.invalidateQueries({ queryKey: ["my-companies"] });
-      toast.success("Invitation accepted!");
+      toast.success("Приглашение принято!");
     },
-    onError: () => toast.error("Failed to accept invitation"),
+    onError: () => toast.error("Не удалось принять приглашение"),
   });
 
   const rejectMutation = useMutation({
     mutationFn: invitationsApi.reject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-invitations"] });
-      toast.success("Invitation declined");
+      toast.success("Приглашение отклонено");
     },
-    onError: () => toast.error("Failed to decline invitation"),
+    onError: () => toast.error("Не удалось отклонить приглашение"),
   });
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <PageHeader title="Invitations" description="Pending company invitations" />
+      <PageHeader title="Приглашения" description="Ожидающие приглашения от компаний" />
 
       {invitations.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Mail className="h-12 w-12 mb-4 opacity-50" />
-          <p>No pending invitations</p>
+          <p>Нет ожидающих приглашений</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -55,7 +55,7 @@ export default function InvitationsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Invited by {inv.invited_by_name}
+                  Приглашение от {inv.invited_by_name}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -63,7 +63,7 @@ export default function InvitationsPage() {
                     onClick={() => acceptMutation.mutate(inv.id)}
                     disabled={acceptMutation.isPending}
                   >
-                    Accept
+                    Принять
                   </Button>
                   <Button
                     size="sm"
@@ -71,7 +71,7 @@ export default function InvitationsPage() {
                     onClick={() => rejectMutation.mutate(inv.id)}
                     disabled={rejectMutation.isPending}
                   >
-                    Decline
+                    Отклонить
                   </Button>
                 </div>
               </CardContent>
