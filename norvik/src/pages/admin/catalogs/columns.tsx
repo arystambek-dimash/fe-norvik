@@ -10,10 +10,10 @@ interface ColumnActions {
 export function getCatalogColumns({ onEdit, onDelete }: ColumnActions): ColumnDef<CatalogRead>[] {
   return [
     { accessorKey: "id", header: "ID", cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span> },
-    { accessorKey: "name", header: "Name" },
+    { accessorKey: "name", header: "Название" },
     {
       accessorKey: "preview_img",
-      header: "Preview",
+      header: "Предпросмотр",
       cell: ({ row }) =>
         row.original.preview_img ? (
           <img src={row.original.preview_img} alt="" className="h-8 w-12 rounded object-cover" />

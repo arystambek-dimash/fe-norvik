@@ -20,8 +20,8 @@ import { getCategoryColumns } from "./columns";
 import { Plus } from "lucide-react";
 
 const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  catalog_id: z.number().min(1, "Select a catalog"),
+  name: z.string().min(1, "Название обязательно"),
+  catalog_id: z.number().min(1, "Выберите каталог"),
 });
 
 export default function AdminCategoriesPage() {
@@ -48,20 +48,20 @@ export default function AdminCategoriesPage() {
 
   const createMutation = useMutation({
     mutationFn: categoriesApi.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category created"); setCreateOpen(false); createForm.reset(); },
-    onError: () => toast.error("Failed to create category"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["categories"] }); toast.success("Категория создана"); setCreateOpen(false); createForm.reset(); },
+    onError: () => toast.error("Не удалось создать категорию"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: z.infer<typeof schema> }) => categoriesApi.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category updated"); setEditItem(null); },
-    onError: () => toast.error("Failed to update category"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["categories"] }); toast.success("Категория обновлена"); setEditItem(null); },
+    onError: () => toast.error("Не удалось обновить категорию"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: ({ id, hard }: { id: number; hard: boolean }) => categoriesApi.delete(id, hard),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category deleted"); setDeleteItem(null); },
-    onError: () => toast.error("Failed to delete category"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["categories"] }); toast.success("Категория удалена"); setDeleteItem(null); },
+    onError: () => toast.error("Не удалось удалить категорию"),
   });
 
   const columns = getCategoryColumns({
@@ -72,9 +72,9 @@ export default function AdminCategoriesPage() {
 
   const catalogSelector = (form: ReturnType<typeof useForm<z.infer<typeof schema>>>, fieldName: "catalog_id") => (
     <div className="space-y-2">
-      <Label>Catalog</Label>
+      <Label>Каталог</Label>
       <Select value={String(form.watch(fieldName) || "")} onValueChange={(v) => form.setValue(fieldName, Number(v))}>
-        <SelectTrigger><SelectValue placeholder="Select catalog" /></SelectTrigger>
+        <SelectTrigger><SelectValue placeholder="Выберите каталог" /></SelectTrigger>
         <SelectContent>
           {catalogs.map((c) => (
             <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
@@ -87,25 +87,25 @@ export default function AdminCategoriesPage() {
   return (
     <div className="space-y-8">
       <div className="animate-fade-up">
-        <PageHeader title="Categories" description="Manage product categories" action={<Button className="rounded-lg" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Category</Button>} />
+        <PageHeader title="Категории" description="Управление категориями продукции" action={<Button className="rounded-lg" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Добавить категорию</Button>} />
       </div>
       <DataTable columns={columns} data={data} isLoading={isLoading} pagination={{ offset: pagination.offset, limit: pagination.limit, onNext: pagination.nextPage, onPrev: pagination.prevPage }} />
 
-      <CrudDialog open={createOpen} onOpenChange={setCreateOpen} title="Add Category" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Create">
+      <CrudDialog open={createOpen} onOpenChange={setCreateOpen} title="Добавить категорию" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))} isLoading={createMutation.isPending} submitLabel="Создать">
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Name</Label><Input {...createForm.register("name")} /></div>
+          <div className="space-y-2"><Label>Название</Label><Input {...createForm.register("name")} /></div>
           {catalogSelector(createForm, "catalog_id")}
         </div>
       </CrudDialog>
 
-      <CrudDialog open={editItem !== null} onOpenChange={() => setEditItem(null)} title="Edit Category" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
+      <CrudDialog open={editItem !== null} onOpenChange={() => setEditItem(null)} title="Редактировать категорию" onSubmit={editForm.handleSubmit((d) => editItem && updateMutation.mutate({ id: editItem.id, data: d }))} isLoading={updateMutation.isPending}>
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Name</Label><Input {...editForm.register("name")} /></div>
+          <div className="space-y-2"><Label>Название</Label><Input {...editForm.register("name")} /></div>
           {catalogSelector(editForm, "catalog_id")}
         </div>
       </CrudDialog>
 
-      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={(hard) => deleteItem && deleteMutation.mutate({ id: deleteItem.id, hard })} title={`Delete ${deleteItem?.name}?`} isLoading={deleteMutation.isPending} showHardDelete />
+      <DeleteDialog open={deleteItem !== null} onOpenChange={() => setDeleteItem(null)} onConfirm={(hard) => deleteItem && deleteMutation.mutate({ id: deleteItem.id, hard })} title={`Удалить ${deleteItem?.name}?`} isLoading={deleteMutation.isPending} showHardDelete />
     </div>
   );
 }
