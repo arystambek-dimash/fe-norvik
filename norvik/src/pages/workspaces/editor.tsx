@@ -18,14 +18,13 @@ import FacadePanel from "@/pages/workspaces/panels/facade-panel";
 import GoldenTablePanel from "@/pages/workspaces/panels/golden-table-panel";
 import { KitchenViewer } from "@/components/viewer3d";
 import type { KitchenViewerHandle } from "@/components/viewer3d";
-import { planKitchen } from "@/algorithm";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import PhotoGenerationDialog from "@/pages/workspaces/photo-generation-dialog";
 import { ArrowLeft, Save, Loader2, PenTool, Sparkles } from "lucide-react";
+import { arrangementsApi } from "@/api/arrangements";
+import { mapBackendResponse } from "@/algorithm/backend-mapper";
 import type { KitchenPlan } from "@/algorithm/types";
-import type { KitchenStoreState } from "@/algorithm/derive-input";
-import { deriveInput } from "@/algorithm";
 import type { SolverVariant } from "@/algorithm/types";
 import type { WallAnchors } from "@/components/viewer3d/scene-builder";
 import { ANCHOR_TO_KIND, buildAnchorGlbByKindMap } from "@/algorithm/constants";
@@ -202,52 +201,46 @@ export default function WorkspaceEditorPage() {
     saveMutation.mutate(content);
   }, [saveMutation]);
 
-  // ---- Generate plan ----
-  const handleGenerate = useCallback(() => {
+  // ---- Generate plan (server-side) ----
+  const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
-    setTimeout(() => {
-      try {
-        const state = usePlannerStore.getState();
-        const anchorsMap: Record<string, typeof state.walls[0]["anchors"]> = {};
-        for (const wall of state.walls) {
-          anchorsMap[wall.id] = wall.anchors;
-        }
+    try {
+      const state = usePlannerStore.getState();
+      const backWall = state.walls[0];
+      const anchors = backWall?.anchors ?? [];
 
-        const storeState: KitchenStoreState = {
-          roomWidth: state.roomWidth,
-          roomDepth: state.roomDepth,
-          wallHeight: state.wallHeight,
-          layoutType: state.layoutType,
-          lShapedSide: state.lShapedSide,
-          walls: state.walls.map((w) => ({ ...w, anchors: [] })),
-          anchors: anchorsMap,
-          availableCabinets: state.modules,
-          goldenRules: state.goldenRules,
-          floorToCeiling: state.floorToCeiling,
-          useSidePanel200: state.useSidePanel200,
-          useHood: state.useHood,
-          useInbuiltStove: state.useInbuiltStove,
-          selectedStoveId: state.selectedStoveId,
-          sinkModuleWidth: state.sinkModuleWidth,
-          drawerHousingWidth: state.drawerHousingWidth,
-          fridgeSide: state.fridgeSide,
-          selectedLowerCornerCabinetId: state.selectedLowerCornerCabinetId,
-          selectedUpperCornerCabinetId: state.selectedUpperCornerCabinetId,
-        };
+      const sinkAnchor = anchors.find((a) => a.type === 'sink');
+      const cooktopAnchor = anchors.find((a) => a.type === 'cooktop');
 
-        const input = deriveInput(storeState);
-        const result = planKitchen(input);
-        state.setVariants(result);
-        toast.success(
-          `Сгенерировано ${result.length} ${pluralize(result.length, "вариант", "варианта", "вариантов")}`,
-        );
-      } catch (err) {
-        console.error("Plan generation failed:", err);
-        toast.error("Не удалось сгенерировать план кухни");
-      } finally {
-        setIsGenerating(false);
-      }
-    }, 0);
+      const sinkPosition = sinkAnchor?.position ?? Math.round(state.roomWidth * 0.35);
+      const platePosition = cooktopAnchor?.position ?? Math.round(state.roomWidth * 0.6);
+
+      const response = await arrangementsApi.generate({
+        width: state.roomWidth,
+        height: state.wallHeight,
+        fridge_position: state.fridgeSide,
+        sink_position: sinkPosition,
+        plate_position: platePosition,
+        sink_size: state.sinkModuleWidth,
+        drawer_size: state.drawerHousingWidth,
+        to_ceiling: state.floorToCeiling,
+        has_sb200: state.useSidePanel200,
+        built_in_stave: state.useInbuiltStove,
+        max_variants: 5,
+      });
+
+      const mapped = mapBackendResponse(response, state.roomWidth);
+      state.setVariants(mapped);
+      toast.success(
+        `Сгенерировано ${mapped.length} ${pluralize(mapped.length, "вариант", "варианта", "вариантов")}`,
+      );
+    } catch (err) {
+      console.error("Server generation failed:", err);
+      const msg = (err as any)?.response?.data?.message || "Не удалось сгенерировать план";
+      toast.error(msg);
+    } finally {
+      setIsGenerating(false);
+    }
   }, []);
 
   // ---- Derived values ----

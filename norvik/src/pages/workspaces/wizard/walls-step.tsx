@@ -128,6 +128,7 @@ function analyzeSegments(wall: WallConfig): SegmentIssue[] {
 
     if (segWidth > 50 && segWidth % 50 !== 0) {
       const anchorIdx = i < sortedAnchors.length ? i : i - 1;
+      if (anchorIdx < 0) { cursor = segEnd; continue; }
       const side: 'before' | 'after' = i < sortedAnchors.length ? 'before' : 'after';
       const anchor = sortedAnchors[anchorIdx];
       const origIdx = wall.anchors.indexOf(anchor);
@@ -526,7 +527,7 @@ function CompactSelector<T extends number | string>({ label, options, value, onC
 }
 
 export function WallsStep() {
-  const { roomWidth, layoutType, lShapedSide, sideWallWidth, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useHood, setUseHood, useInbuiltStove, setUseInbuiltStove, selectedStoveId, setSelectedStoveId, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth, fridgeSide, setFridgeSide, selectedLowerCornerCabinetId, setSelectedLowerCornerCabinetId, selectedUpperCornerCabinetId, setSelectedUpperCornerCabinetId, modules } =
+  const { roomWidth, layoutType, lShapedSide, sideWallWidth, walls, setWalls, floorToCeiling, setFloorToCeiling, useSidePanel200, setUseSidePanel200, useInbuiltStove, setUseInbuiltStove, selectedStoveId, setSelectedStoveId, sinkModuleWidth, setSinkModuleWidth, drawerHousingWidth, setDrawerHousingWidth, fridgeSide, setFridgeSide, selectedLowerCornerCabinetId, setSelectedLowerCornerCabinetId, selectedUpperCornerCabinetId, setSelectedUpperCornerCabinetId, modules } =
     usePlannerStore();
 
   const lowerCornerOptions = useMemo(
@@ -891,7 +892,6 @@ export function WallsStep() {
         <div className="grid grid-cols-2 gap-x-8 gap-y-3">
           <CompactToggle label="До потолка" checked={floorToCeiling} onChange={setFloorToCeiling} />
           <CompactToggle label="СБ 200" checked={useSidePanel200} onChange={setUseSidePanel200} />
-          <CompactToggle label="Вытяжка" checked={useHood} onChange={setUseHood} />
           <CompactToggle label="Встроенная плита" checked={useInbuiltStove} onChange={handleInbuiltStoveChange} />
           <CompactSelector label="Мойка" options={[600, 800] as const} value={sinkModuleWidth} onChange={handleSinkModuleWidthChange} />
           <CompactSelector label="СЯШ" options={[400, 600] as const} value={drawerHousingWidth} onChange={setDrawerHousingWidth} />

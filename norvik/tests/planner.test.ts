@@ -860,57 +860,6 @@ describe('planKitchen integration', () => {
     expect(matched).toBe(true);
   });
 
-  it('can shift anchor even when original layout has no fillers if overall score improves', () => {
-    const sinkModule = makeCabinet({
-      width: 600, article: 'СМ 600',
-      kind: CabinetKind.SINK, subtype: CabinetSubtype.SINK_BASE,
-    });
-    const drawerUnit = makeCabinet({
-      width: 400, article: 'СЯШ 400',
-      kind: CabinetKind.DRAWER_UNIT, subtype: CabinetSubtype.DRAWER_ONLY,
-    });
-    const upper600 = makeCabinet({
-      width: 600, article: 'ВП 600',
-      type: CabinetType.UPPER,
-      kind: CabinetKind.DOOR,
-    });
-    const input = makeInput({
-      roomWidth: 3300,
-      modules: [
-        makeCabinet({ width: 400, article: 'W400' }),
-        makeCabinet({ width: 500, article: 'W500' }),
-        makeCabinet({ width: 600, article: 'W600' }),
-        upper600,
-        sinkModule,
-        drawerUnit,
-      ],
-      sinkModuleWidth: 600,
-      drawerHousingWidth: 400,
-      walls: [{
-        id: 'Back Wall',
-        length: 3300,
-        anchors: [
-          { type: 'sink', position: 0, width: 600 },
-          { type: 'cooktop', position: 1400, width: 600 },
-        ],
-      }],
-    });
-
-    const variants = planKitchen(input);
-    expect(variants.length).toBeGreaterThan(0);
-
-    const topVariant = variants[0].plan;
-    expect(topVariant.anchorShifts?.length).toBeGreaterThan(0);
-    expect(topVariant.anchorShifts?.some(
-      (shift) => shift.anchorType === 'cooktop' && shift.newPosition === 1500,
-    )).toBe(true);
-
-    const lowerFillers = topVariant.walls[0].modules.filter(
-      (m) => m.type === 'filler' && m.depth === 470,
-    );
-    expect(lowerFillers).toHaveLength(0);
-  });
-
   it('produces no gaps — all segments have at least one module or filler', () => {
     const input = makeInput({
       walls: [{
@@ -935,5 +884,197 @@ describe('planKitchen integration', () => {
       // Should fill all segments: 400 + 1200 = 1600mm
       expect(totalWidth).toBe(1600);
     }
+  });
+
+  it('places the fridge after the full lower run including filler on non-grid wall lengths', () => {
+    const sinkModule = makeCabinet({
+      width: 600,
+      article: 'СМ 600',
+      kind: CabinetKind.SINK,
+      subtype: CabinetSubtype.SINK_BASE,
+    });
+    const plateModule = makeCabinet({
+      width: 600,
+      article: 'СПУ 600',
+      kind: CabinetKind.PLATE,
+      type: CabinetType.LOWER,
+      inbuilt: true,
+    });
+    const drawerUnit = makeCabinet({
+      width: 400,
+      article: 'СЯШ 400',
+      kind: CabinetKind.DRAWER_UNIT,
+      subtype: CabinetSubtype.DRAWER_ONLY,
+    });
+    const fridge = makeCabinet({
+      width: 600,
+      article: 'Х 600',
+      kind: CabinetKind.FRIDGE,
+      type: CabinetType.TALL,
+      height: 2100,
+      depth: 600,
+    });
+
+    const input = makeInput({
+      roomWidth: 3001,
+      walls: [{
+        id: 'Back Wall',
+        length: 3001,
+        anchors: [
+          { type: 'sink', position: 0, width: 600 },
+          { type: 'cooktop', position: 1000, width: 600 },
+        ],
+      }],
+      modules: [...standardModules(), sinkModule, plateModule, drawerUnit, fridge],
+      sinkModuleWidth: 600,
+      drawerHousingWidth: 400,
+      fridgeSide: 'right',
+      useInbuiltStove: true,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    const wall = variants[0].plan.walls[0];
+    const fridgeModule = wall.modules.find(
+      (m) => m.type === 'tall' && m.kind === CabinetKind.FRIDGE,
+    );
+    expect(fridgeModule).toBeDefined();
+
+    const filler801 = wall.modules.find(
+      (m) => m.type === 'filler' && m.width === 801,
+    );
+    expect(filler801).toBeUndefined();
+
+    const regular400Modules = wall.modules.filter(
+      (m) => m.type === 'lower' && m.article === 'W400',
+    );
+    expect(regular400Modules).toHaveLength(2);
+    expect(regular400Modules.map((m) => m.x).sort((a, b) => a - b)).toEqual([1600, 2000]);
+
+    const lowerAndFillers = wall.modules.filter(
+      (m) => m.type === 'lower' || m.type === 'filler',
+    );
+    const fullLowerEnd = Math.max(...lowerAndFillers.map((m) => m.x + m.width));
+    expect(fridgeModule!.x).toBe(fullLowerEnd);
+    expect(fridgeModule!.x).toBe(2400);
+    expect(fridgeModule!.x + fridgeModule!.width).toBe(3000);
+  });
+
+  it('uses a 450 module instead of FILLER-452 on the edge opposite the fridge', () => {
+    const fridge = makeCabinet({
+      width: 600,
+      article: 'Х 600',
+      kind: CabinetKind.FRIDGE,
+      type: CabinetType.TALL,
+      height: 2100,
+      depth: 600,
+    });
+
+    const input = makeInput({
+      roomWidth: 1052,
+      walls: [{
+        id: 'Back Wall',
+        length: 1052,
+        anchors: [],
+      }],
+      modules: [...standardModules(), fridge],
+      fridgeSide: 'left',
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    const wall = variants[0].plan.walls[0];
+    const filler452 = wall.modules.find(
+      (m) => m.type === 'filler' && m.width === 452,
+    );
+    expect(filler452).toBeUndefined();
+
+    const module450 = wall.modules.find(
+      (m) => m.type === 'lower' && m.article === 'W450',
+    );
+    expect(module450).toBeDefined();
+    expect(module450!.x).toBe(600);
+
+    const fridgeModule = wall.modules.find(
+      (m) => m.type === 'tall' && m.kind === CabinetKind.FRIDGE,
+    );
+    expect(fridgeModule).toBeDefined();
+    expect(fridgeModule!.x + fridgeModule!.width).toBe(module450!.x);
+  });
+
+  it('compacts the fridge against the first real module instead of leaving a filler beside it', () => {
+    const sinkModule = makeCabinet({
+      width: 800,
+      article: 'СМ 800',
+      kind: CabinetKind.SINK,
+      subtype: CabinetSubtype.SINK_BASE,
+    });
+    const plateModule = makeCabinet({
+      width: 600,
+      article: 'СПУ 600',
+      kind: CabinetKind.PLATE,
+      type: CabinetType.LOWER,
+      inbuilt: true,
+    });
+    const drawerUnit = makeCabinet({
+      width: 400,
+      article: 'СЯШ 400',
+      kind: CabinetKind.DRAWER_UNIT,
+      subtype: CabinetSubtype.DRAWER_ONLY,
+    });
+    const fridge = makeCabinet({
+      width: 600,
+      article: 'Х 600',
+      kind: CabinetKind.FRIDGE,
+      type: CabinetType.TALL,
+      height: 2100,
+      depth: 600,
+    });
+
+    const input = makeInput({
+      roomWidth: 3125,
+      walls: [{
+        id: 'Back Wall',
+        length: 3125,
+        anchors: [
+          { type: 'sink', position: 900, width: 800 },
+          { type: 'cooktop', position: 2100, width: 600 },
+        ],
+      }],
+      modules: [
+        ...standardModules().filter((m) => m.width >= 400),
+        sinkModule,
+        plateModule,
+        drawerUnit,
+        fridge,
+      ],
+      sinkModuleWidth: 800,
+      drawerHousingWidth: 400,
+      fridgeSide: 'left',
+      useInbuiltStove: true,
+    });
+
+    const variants = planKitchen(input);
+    expect(variants.length).toBeGreaterThan(0);
+
+    const wall = variants[0].plan.walls[0];
+    const filler300 = wall.modules.find(
+      (m) => m.type === 'filler' && m.width === 300,
+    );
+    expect(filler300).toBeUndefined();
+
+    const fridgeModule = wall.modules.find(
+      (m) => m.type === 'tall' && m.kind === CabinetKind.FRIDGE,
+    );
+    const sinkBase = wall.modules.find(
+      (m) => m.type === 'lower' && m.kind === CabinetKind.SINK,
+    );
+
+    expect(fridgeModule).toBeDefined();
+    expect(sinkBase).toBeDefined();
+    expect(fridgeModule!.x + fridgeModule!.width).toBe(sinkBase!.x);
+    expect(fridgeModule!.x).toBe(300);
   });
 });

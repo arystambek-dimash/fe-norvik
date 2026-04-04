@@ -69,7 +69,7 @@ export default function CountertopPanel({ highlighted }: CountertopPanelProps) {
         <div className="flex items-center gap-2">
           <Input
             type="color"
-            value={countertopColor ?? "#3A3A3A"}
+            value={countertopColor ?? "#8B6914"}
             onChange={handleColorChange}
             className="h-9 w-14 cursor-pointer p-1"
           />

@@ -41,14 +41,14 @@ function stoneMaterial(color: number): THREE.MeshStandardMaterial {
 
 /** Shared countertop material — import and mutate directly to change all countertops at once. */
 export const countertopMaterial = new THREE.MeshStandardMaterial({
-  color: 0x3A3A3A,
+  color: 0xffffff,
   roughness: 0.4,
   metalness: 0.05,
 });
 
 /** Shared facade (door) material — mutate directly to change all door panels at once. */
 export const facadeMaterial = new THREE.MeshStandardMaterial({
-  color: COLORS.cabinetDoor,
+  color: 0xffffff,
   roughness: 0.65,
   metalness: 0.0,
 });

@@ -7,6 +7,7 @@ import {buildScene, type RoomConfig, type WallAnchors} from './scene-builder';
 import {disposeScene} from './dispose';
 import {clearTextureCache} from './texture-factory';
 import {countertopMaterial, facadeMaterial} from './procedural-models';
+import defaultCountertopTextureUrl from '@/textures/дуб вотан.png';
 
 interface KitchenViewerProps {
     plan: KitchenPlan | null;
@@ -322,8 +323,9 @@ export const KitchenViewer = forwardRef<KitchenViewerHandle, KitchenViewerProps>
 
     // Apply countertop color/texture via the shared material
     useEffect(() => {
-        if (countertopTextureUrl) {
-            new THREE.TextureLoader().load(countertopTextureUrl, (texture) => {
+        const textureUrl = countertopTextureUrl ?? defaultCountertopTextureUrl;
+        if (!countertopColor) {
+            new THREE.TextureLoader().load(textureUrl, (texture) => {
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
                 texture.repeat.set(2, 2);
@@ -331,13 +333,9 @@ export const KitchenViewer = forwardRef<KitchenViewerHandle, KitchenViewerProps>
                 countertopMaterial.color.setHex(0xffffff);
                 countertopMaterial.needsUpdate = true;
             });
-        } else if (countertopColor) {
-            countertopMaterial.map = null;
-            countertopMaterial.color.set(countertopColor);
-            countertopMaterial.needsUpdate = true;
         } else {
             countertopMaterial.map = null;
-            countertopMaterial.color.setHex(0x3A3A3A);
+            countertopMaterial.color.set(countertopColor);
             countertopMaterial.needsUpdate = true;
         }
     }, [countertopColor, countertopTextureUrl]);
@@ -359,7 +357,7 @@ export const KitchenViewer = forwardRef<KitchenViewerHandle, KitchenViewerProps>
             facadeMaterial.needsUpdate = true;
         } else {
             facadeMaterial.map = null;
-            facadeMaterial.color.setHex(0xD4B48E);
+            facadeMaterial.color.setHex(0xFFFFFF);
             facadeMaterial.needsUpdate = true;
         }
     }, [facadeColor, facadeTextureUrl]);
