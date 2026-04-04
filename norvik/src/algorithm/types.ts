@@ -1,132 +1,68 @@
-import type { CabinetRead } from '@/types/entities';
-import type { CabinetKind, CabinetSubtype } from '@/types/enums';
-
-export type AnchorType = 'sink' | 'cooktop' | 'oven';
-export type SegmentContext = 'sink' | 'standard';
-export type LayoutType = 'linear' | 'l-shaped';
-
-/** Which endpoint of a wall participates in a corner junction */
-export type WallEndpoint = 'start' | 'end';
-
 /**
- * A corner junction where two walls meet.
- * Defines exactly which wall endpoints connect and at what angle.
+ * Core types for the kitchen arrangement algorithm.
+ *
+ * These types are consumed by:
+ * - scene-builder.ts  (KitchenPlan, PlacedModule, Anchor)
+ * - variant-panel.tsx (SolverVariant, ScoreBreakdown, CategoryDetail)
+ * - editor.tsx        (KitchenPlan, SolverVariant)
+ * - module-panel.tsx  (PlacedModule)
+ * - golden-table-panel.tsx (GoldenRule, SegmentContext)
  */
-export interface CornerJunction {
+
+/** A cabinet module placed at a specific x position on a wall. */
+export interface PlacedModule {
   id: string;
-  wallA: { wallId: string; end: WallEndpoint };
-  wallB: { wallId: string; end: WallEndpoint };
-  angle: number; // interior angle in degrees (90 for standard L)
+  article: string;
+  kind: string;
+  type: string;
+  subtype?: string;
+  width: number;
+  height: number;
+  depth: number;
+  x: number;
+  glbFile?: string | null;
+  yOffset?: number | null;
+  rotation?: number;
+  cabinetId?: number | null;
+  wallId?: string;
 }
 
+/** Anchor point for sink, cooktop, or oven on a wall. */
 export interface Anchor {
-  type: AnchorType;
-  position: number; // mm from wall start
-  width: number;    // mm
-  glbFile?: string | null; // GLB 3D model URL from cabinet record
+  type: 'sink' | 'cooktop' | 'oven';
+  position: number;
+  width: number;
+  isBuiltIn?: boolean;
+  glbFile?: string | null;
   isVirtual?: boolean;
   virtualKind?: 'corner' | 'reserved';
 }
 
-export interface WallConfig {
-  id: string;
-  length: number; // mm
-  anchors: Anchor[];
-}
-
-export interface Segment {
+/** A single wall's layout — modules placed along it. */
+export interface WallViewPlan {
   wallId: string;
-  start: number;
-  end: number;
-  width: number;
-  context: SegmentContext;
-  isTrim: boolean;
-}
-
-export interface PlacedModule {
-  id: string;
-  cabinetId: number;
-  article: string;
-  kind?: CabinetKind;
-  subtype?: CabinetSubtype;
-  x: number;
-  width: number;
-  height: number;
-  depth: number;
-  type: 'lower' | 'upper' | 'tall' | 'filler' | 'corner' | 'antresol';
-  wallId: string;
-  rotation?: number; // radians around Y axis (used for corner cabinets)
-  yOffset?: number;  // mm from floor to bottom of module (used for antresols)
-  glbFile?: string | null; // GLB 3D model URL from cabinet record
-}
-
-export interface AnchorShift {
-  anchorType: 'sink' | 'cooktop' | 'oven';
-  originalPosition: number;
-  newPosition: number;
-  delta: number;
-}
-
-export interface KitchenPlan {
-  walls: WallPlan[];
-  cornerModules: PlacedModule[]; // corner cabinets placed at wall junctions
-  score: number;
-  scoreBreakdown: ScoreBreakdown;
-  anchorShifts?: AnchorShift[];
-}
-
-export interface WallPlan {
-  wallId: string;
+  wallLength: number;
   modules: PlacedModule[];
   anchors?: Anchor[];
-  anchorShifts?: AnchorShift[];
 }
 
-export interface SolverVariant {
-  plan: KitchenPlan;
-  rank: number;
+/** Describes an anchor that was shifted from its original position. */
+export interface AnchorShift {
+  anchorType: string;
+  delta: number;
+  originalPosition: number;
+  newPosition: number;
 }
 
-export interface GoldenRule {
-  context: SegmentContext;
-  width: number;
-  moduleArticles: string[];
-}
-
-export interface PlannerInput {
-  walls: WallConfig[];
-  corners: CornerJunction[];
-  modules: CabinetRead[];
-  goldenRules: GoldenRule[];
-  roomWidth: number;
-  roomDepth: number;
-  wallHeight: number;
-  layoutType: LayoutType;
-  floorToCeiling: boolean;
-  useSidePanel200: boolean;
-  useHood: boolean;
-  sinkModuleWidth: number;
-  drawerHousingWidth: number;
-  fridgeSide: 'left' | 'right';
-  useInbuiltStove: boolean;
-  selectedStoveId: number | null;
-  selectedLowerCornerCabinetId: number | null;
-  selectedUpperCornerCabinetId: number | null;
-}
-
-export interface ScoringResult {
-  total: number;
-  breakdown: ScoreBreakdown;
-}
-
+/** Per-category scoring detail with sub-metric breakdown. */
 export interface CategoryDetail {
-  score: number;           // 0–100
-  subMetrics: Record<string, number>; // each 0–100
+  score: number;
+  subMetrics: Record<string, number>;
 }
 
+/** Full score breakdown across all evaluation categories. */
 export interface ScoreBreakdown {
   hardConstraintsPassed: boolean;
-  violations: string[];
   ergonomics: CategoryDetail;
   workflow: CategoryDetail;
   aesthetics: CategoryDetail;
@@ -134,9 +70,28 @@ export interface ScoreBreakdown {
   preferences: CategoryDetail;
 }
 
-export interface SolverCandidate {
-  widths: number[];
-  cabinetIds: number[];
-  articles: string[];
+/** Complete kitchen plan for a single variant. */
+export interface KitchenPlan {
+  walls: WallViewPlan[];
   score: number;
+  scoreBreakdown: ScoreBreakdown;
+  anchorShifts?: AnchorShift[];
+  cornerModules?: PlacedModule[];
+}
+
+/** A scored variant produced by the solver. */
+export interface SolverVariant {
+  rank: number;
+  plan: KitchenPlan;
+  score: number;
+}
+
+/** Segment context for golden table rules. */
+export type SegmentContext = 'sink' | 'standard';
+
+/** Golden table rule mapping context+width to module articles. */
+export interface GoldenRule {
+  context: SegmentContext;
+  width: number;
+  moduleArticles: string[];
 }
