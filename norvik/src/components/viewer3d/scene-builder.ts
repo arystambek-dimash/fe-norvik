@@ -197,8 +197,7 @@ function shouldIncludeCountertop(mod: Pick<PlacedModule, 'type' | 'kind' | 'subt
 
   return !(
     mod.kind === CabinetKind.PLATE ||
-    mod.kind === CabinetKind.SINK &&
-    mod.subtype === CabinetSubtype.SINK_BASE
+    mod.kind === CabinetKind.SINK
   );
 }
 

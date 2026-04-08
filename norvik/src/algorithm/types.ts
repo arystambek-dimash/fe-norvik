@@ -1,7 +1,7 @@
 import type { CabinetRead } from '@/types/entities';
 import type { CabinetKind, CabinetSubtype } from '@/types/enums';
 
-export type AnchorType = 'sink' | 'cooktop' | 'oven';
+export type AnchorType = 'sink' | 'cooktop' | 'oven' | 'fridge';
 export type SegmentContext = 'sink' | 'standard';
 export type LayoutType = 'linear' | 'l-shaped';
 
@@ -61,7 +61,7 @@ export interface PlacedModule {
 }
 
 export interface AnchorShift {
-  anchorType: 'sink' | 'cooktop' | 'oven';
+  anchorType: AnchorType;
   originalPosition: number;
   newPosition: number;
   delta: number;

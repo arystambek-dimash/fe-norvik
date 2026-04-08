@@ -1,19 +1,19 @@
 import { create } from 'zustand';
 
 // Types needed for the kitchen planner
-interface WallConfig {
-  id: string;
-  length: number;
-  anchors: Anchor[];
-}
-
 interface Anchor {
-  type: 'sink' | 'cooktop' | 'oven';
+  type: 'sink' | 'cooktop' | 'oven' | 'fridge';
   position: number;
   width: number;
   glbFile?: string | null;
   isVirtual?: boolean;
   virtualKind?: 'corner' | 'reserved';
+}
+
+interface WallConfig {
+  id: string;
+  length: number;
+  anchors: Anchor[];
 }
 
 interface GoldenRule {
@@ -79,6 +79,12 @@ interface PlannerState {
   facadeColor: string | null;
   facadeTextureUrl: string | null;
 
+  // V3: Appliance selection
+  hasDishwasher: boolean;
+  ovenPlacement: 'under-cooktop' | 'penal';  // СДШ 600 or ПНС 600
+  supersinkOrientation: 'left' | 'right';     // which side СЯШ goes
+  primaryWall: 'left' | 'right';              // which side has NO gaps (main wall)
+
   // 3D viewer
   selectedModuleId: string | null;
 
@@ -113,6 +119,10 @@ interface PlannerState {
   setCountertopTextureUrl: (url: string | null) => void;
   setFacadeColor: (color: string | null) => void;
   setFacadeTextureUrl: (url: string | null) => void;
+  setHasDishwasher: (v: boolean) => void;
+  setOvenPlacement: (v: 'under-cooktop' | 'penal') => void;
+  setSupersinkOrientation: (v: 'left' | 'right') => void;
+  setPrimaryWall: (v: 'left' | 'right') => void;
   setSelectedModuleId: (id: string | null) => void;
   reset: () => void;
 }
@@ -142,6 +152,10 @@ const initialState = {
   countertopTextureUrl: null as string | null,
   facadeColor: null as string | null,
   facadeTextureUrl: null as string | null,
+  hasDishwasher: false,
+  ovenPlacement: 'under-cooktop' as 'under-cooktop' | 'penal',
+  supersinkOrientation: 'right' as 'left' | 'right',
+  primaryWall: 'left' as 'left' | 'right',
   variants: [] as any[],
   selectedVariantIndex: 0,
   selectedModuleId: null,
@@ -172,6 +186,10 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setCountertopTextureUrl: (url) => set({ countertopTextureUrl: url, countertopColor: null }),
   setFacadeColor: (color) => set({ facadeColor: color, facadeTextureUrl: null }),
   setFacadeTextureUrl: (url) => set({ facadeTextureUrl: url, facadeColor: null }),
+  setHasDishwasher: (v) => set({ hasDishwasher: v }),
+  setOvenPlacement: (v) => set({ ovenPlacement: v }),
+  setSupersinkOrientation: (v) => set({ supersinkOrientation: v }),
+  setPrimaryWall: (v) => set({ primaryWall: v }),
   setSelectedModuleId: (id) => set({ selectedModuleId: id }),
   reset: () => set(initialState),
 }));

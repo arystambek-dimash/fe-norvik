@@ -1,42 +1,14 @@
-import type { PlannerInput, SolverVariant, WallPlan } from './types';
-import {
-  resetModuleCounter,
-  preparePlannerContext,
-  placeCorners,
-  processWall,
-  combineAndScore,
-} from './planner-helpers';
-import { planLShaped } from './l-shaped-planner';
+/**
+ * Kitchen planner entry point — delegates to v3 (greedy fill).
+ */
+import type { PlannerInput, SolverVariant } from './types';
+import { planKitchen as planV3, resetModuleCounter as resetV3 } from './planner-v3';
 
-export { resetModuleCounter, buildModuleMaps, solveSegment } from './planner-helpers';
+export function resetModuleCounter(): void { resetV3(); }
 
 export function planKitchen(input: PlannerInput): SolverVariant[] {
-  if (input.layoutType === 'l-shaped') {
-    return planLShaped(input);
-  }
-  return planLinear(input);
+  return planV3(input);
 }
 
-function planLinear(input: PlannerInput): SolverVariant[] {
-  resetModuleCounter();
-  const ctx = preparePlannerContext(input);
-  const { cornerModules, cornerOffsets } = placeCorners(input.corners, input.modules, {
-    lowerCornerCabinetId: input.selectedLowerCornerCabinetId,
-    upperCornerCabinetId: input.selectedUpperCornerCabinetId,
-  });
-  const lastWallId = input.walls.length > 0 ? input.walls[input.walls.length - 1].id : null;
-
-  const wallVariantSets: WallPlan[][] = [];
-  for (const wallConfig of input.walls) {
-    const offset = cornerOffsets.get(wallConfig.id);
-    const hasFridge = wallConfig.id === lastWallId;
-    const variants = processWall(wallConfig, ctx, offset, {
-      fridgeCab: hasFridge ? ctx.fridgeCab : null,
-      penalCab: hasFridge ? ctx.penalCab : null,
-      fridgeSide: input.fridgeSide,
-    }, input);
-    wallVariantSets.push(variants);
-  }
-
-  return combineAndScore(wallVariantSets, cornerModules, input);
-}
+// Re-export for backwards compatibility
+export { solveSegment, buildModuleMaps } from './planner-helpers';

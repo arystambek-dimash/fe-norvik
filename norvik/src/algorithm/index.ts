@@ -60,3 +60,6 @@ export { solveSegment } from './planner-helpers';
 // Derive input
 export {deriveInput} from './derive-input';
 export type {KitchenStoreState} from './derive-input';
+
+// v3 utilities (for frontend gap warnings)
+export { isFillable, nearestFillable, generateFillVariants, getEffectiveWidths } from './planner-v3';

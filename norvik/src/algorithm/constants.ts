@@ -212,6 +212,7 @@ export const ANCHOR_TO_KIND: Record<AnchorType, CabinetKind> = {
   sink: CabinetKind.SINK,
   cooktop: CabinetKind.PLATE,
   oven: CabinetKind.APPLIANCE_HOUSING,
+  fridge: CabinetKind.FRIDGE,
 };
 
 /**

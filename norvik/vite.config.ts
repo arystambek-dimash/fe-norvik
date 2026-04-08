@@ -13,6 +13,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
       "/r2-proxy": {
         target: "https://pub-0f21558eef0d42a39f2ba250b314573c.r2.dev",
         changeOrigin: true,

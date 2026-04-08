@@ -13,7 +13,7 @@ interface WallConfig {
 }
 
 interface Anchor {
-  type: 'sink' | 'cooktop' | 'oven';
+  type: 'sink' | 'cooktop' | 'oven' | 'fridge';
   position: number;
   width: number;
 }
@@ -179,8 +179,8 @@ function isValidLayoutType(value: unknown): value is 'linear' | 'l-shaped' {
   return value === 'linear' || value === 'l-shaped';
 }
 
-function isValidAnchorType(value: unknown): value is 'sink' | 'cooktop' | 'oven' {
-  return value === 'sink' || value === 'cooktop' || value === 'oven';
+function isValidAnchorType(value: unknown): value is 'sink' | 'cooktop' | 'oven' | 'fridge' {
+  return value === 'sink' || value === 'cooktop' || value === 'oven' || value === 'fridge';
 }
 
 function isValidGoldenRuleContext(value: unknown): value is 'sink' | 'standard' {

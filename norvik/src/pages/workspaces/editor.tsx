@@ -19,6 +19,8 @@ import GoldenTablePanel from "@/pages/workspaces/panels/golden-table-panel";
 import { KitchenViewer } from "@/components/viewer3d";
 import type { KitchenViewerHandle } from "@/components/viewer3d";
 import { planKitchen } from "@/algorithm";
+import { generateArrangement, generateLShapedArrangement } from "@/api/arrangements";
+import type { VariantResponse, PlacedModuleResponse, LShapedVariantResponse } from "@/api/arrangements";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import PhotoGenerationDialog from "@/pages/workspaces/photo-generation-dialog";
@@ -202,52 +204,223 @@ export default function WorkspaceEditorPage() {
     saveMutation.mutate(content);
   }, [saveMutation]);
 
-  // ---- Generate plan ----
-  const handleGenerate = useCallback(() => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      try {
-        const state = usePlannerStore.getState();
-        const anchorsMap: Record<string, typeof state.walls[0]["anchors"]> = {};
-        for (const wall of state.walls) {
-          anchorsMap[wall.id] = wall.anchors;
-        }
+  // ---- Convert API response to SolverVariant format for viewer ----
+  let _apiModId = 0;
 
-        const storeState: KitchenStoreState = {
-          roomWidth: state.roomWidth,
-          roomDepth: state.roomDepth,
-          wallHeight: state.wallHeight,
-          layoutType: state.layoutType,
-          lShapedSide: state.lShapedSide,
-          walls: state.walls.map((w) => ({ ...w, anchors: [] })),
-          anchors: anchorsMap,
-          availableCabinets: state.modules,
-          goldenRules: state.goldenRules,
-          floorToCeiling: state.floorToCeiling,
-          useSidePanel200: state.useSidePanel200,
-          useHood: state.useHood,
-          useInbuiltStove: state.useInbuiltStove,
-          selectedStoveId: state.selectedStoveId,
-          sinkModuleWidth: state.sinkModuleWidth,
-          drawerHousingWidth: state.drawerHousingWidth,
-          fridgeSide: state.fridgeSide,
-          selectedLowerCornerCabinetId: state.selectedLowerCornerCabinetId,
-          selectedUpperCornerCabinetId: state.selectedUpperCornerCabinetId,
-        };
+  const apiModuleToPlaced = (m: PlacedModuleResponse, wallId: string, tier: string): any => {
+    // Map API type string to viewer tier
+    let moduleType = tier;
+    if (m.type === 'tall') moduleType = 'tall';
 
-        const input = deriveInput(storeState);
-        const result = planKitchen(input);
-        state.setVariants(result);
-        toast.success(
-          `Сгенерировано ${result.length} ${pluralize(result.length, "вариант", "варианта", "вариантов")}`,
-        );
-      } catch (err) {
-        console.error("Plan generation failed:", err);
-        toast.error("Не удалось сгенерировать план кухни");
-      } finally {
-        setIsGenerating(false);
+    // Determine upper height for yOffset calculations
+    const upperH = m.height > 0 ? m.height : 720;
+
+    return {
+      id: `api-${_apiModId++}`,
+      cabinetId: m.cabinet_id ?? -1,
+      article: m.article,
+      kind: m.kind,
+      x: m.x,
+      width: m.width,
+      height: m.height || (tier === 'lower' ? 820 : tier === 'upper' ? 720 : 350),
+      depth: m.depth || (tier === 'lower' ? 470 : 300),
+      type: moduleType,
+      wallId,
+      glbFile: m.glb_url ?? undefined,
+      ...(tier === 'upper' ? { yOffset: 1400 } : {}),
+      ...(tier === 'antresol' ? { yOffset: 1400 + 720 } : {}),
+    };
+  };
+
+  const apiVariantToSolver = (v: VariantResponse, wallId: string, rank: number): SolverVariant => {
+    _apiModId = 0;
+    const modules = [
+      ...v.lowers.map(m => apiModuleToPlaced(m, wallId, m.type === 'tall' ? 'tall' : 'lower')),
+      ...v.uppers.map(m => apiModuleToPlaced(m, wallId, 'upper')),
+      ...v.antresols.map(m => apiModuleToPlaced(m, wallId, 'antresol')),
+    ].sort((a: any, b: any) => a.x - b.x);
+
+    return {
+      plan: {
+        walls: [{ wallId, modules, anchors: [] }],
+        cornerModules: [],
+        score: v.score * 100,
+        scoreBreakdown: {
+          hardConstraintsPassed: true,
+          violations: [],
+          ergonomics: { score: v.score_breakdown.ergonomics * 100, subMetrics: {} },
+          workflow: { score: v.score_breakdown.workflow * 100, subMetrics: {} },
+          aesthetics: { score: v.score_breakdown.aesthetics * 100, subMetrics: {} },
+          manufacturability: { score: v.score_breakdown.manufacturability * 100, subMetrics: {} },
+          preferences: { score: v.score_breakdown.preferences * 100, subMetrics: {} },
+        },
+      },
+      rank,
+    };
+  };
+
+  // ---- Convert anchors to API format ----
+  const convertAnchors = (anchors: typeof walls[0]["anchors"]) =>
+    anchors.map(a => {
+      let type: "supersink" | "plate" | "fridge" | "penal" | "sidepanel";
+      if (a.type === 'sink') type = 'supersink';
+      else if (a.type === 'cooktop') type = 'plate';
+      else if (a.type === 'fridge') type = 'fridge';
+      else if (a.type === 'oven') type = 'penal';
+      else type = 'sidepanel';
+      return { type, position: a.position, width: a.width };
+    });
+
+  // ---- Generate: LINEAR kitchen (unchanged) ----
+  const handleGenerateLinear = async (state: any) => {
+    const wall = state.walls[0];
+    if (!wall) throw new Error("No wall configured");
+
+    const response = await generateArrangement({
+      width: wall.length,
+      height: state.wallHeight,
+      anchors: convertAnchors(wall.anchors),
+      sink_size: state.sinkModuleWidth,
+      drawer_size: state.drawerHousingWidth,
+      has_dishwasher: state.hasDishwasher,
+      supersink_orientation: state.supersinkOrientation,
+      built_in_stove: state.useInbuiltStove,
+      has_sb200: state.useSidePanel200,
+      primary_wall: state.primaryWall,
+      to_ceiling: state.floorToCeiling,
+      use_hood: state.useHood,
+      max_variants: 10,
+    });
+
+    return response.variants.map((v: VariantResponse, i: number) => {
+      _apiModId = 0;
+      const modules = [
+        ...v.lowers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall.id, m.type === 'tall' ? 'tall' : 'lower')),
+        ...v.uppers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall.id, 'upper')),
+        ...v.antresols.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall.id, 'antresol')),
+      ].sort((a: any, b: any) => a.x - b.x);
+      return {
+        plan: {
+          walls: [{ wallId: wall.id, modules, anchors: wall.anchors }],
+          cornerModules: [],
+          score: v.score * 100,
+          scoreBreakdown: {
+            hardConstraintsPassed: true, violations: [],
+            ergonomics: { score: 80, subMetrics: {} }, workflow: { score: 80, subMetrics: {} },
+            aesthetics: { score: 80, subMetrics: {} }, manufacturability: { score: 80, subMetrics: {} },
+            preferences: { score: 80, subMetrics: {} },
+          },
+        },
+        rank: i + 1,
+      } as SolverVariant;
+    });
+  };
+
+  // ---- Generate: L-SHAPED kitchen (separate API, separate response) ----
+  const handleGenerateLShaped = async (state: any) => {
+    const wall1 = state.walls[0]; // Back Wall
+    const wall2 = state.walls[1]; // Side Wall
+    if (!wall1 || !wall2) throw new Error("L-shaped needs 2 walls");
+
+    const response = await generateLShapedArrangement({
+      wall1_length: wall1.length,
+      wall2_length: wall2.length,
+      height: state.wallHeight,
+      corner_side: state.lShapedSide,
+      wall1_anchors: convertAnchors(wall1.anchors),
+      wall2_anchors: convertAnchors(wall2.anchors),
+      sink_size: state.sinkModuleWidth,
+      drawer_size: state.drawerHousingWidth,
+      has_dishwasher: state.hasDishwasher,
+      supersink_orientation: state.supersinkOrientation,
+      built_in_stove: state.useInbuiltStove,
+      has_sb200: state.useSidePanel200,
+      to_ceiling: state.floorToCeiling,
+      use_hood: state.useHood,
+      max_variants: 10,
+    });
+
+    // API returns wall1 and wall2 modules SEPARATELY — no splitting needed
+    return response.variants.map((v: LShapedVariantResponse, i: number) => {
+      _apiModId = 0;
+
+      // Wall 1 modules
+      const w1Mods = [
+        ...v.wall1_lowers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall1.id, m.type === 'tall' ? 'tall' : 'lower')),
+        ...v.wall1_uppers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall1.id, 'upper')),
+        ...v.wall1_antresols.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall1.id, 'antresol')),
+      ].sort((a: any, b: any) => a.x - b.x);
+
+      // Wall 2 modules
+      const w2Mods = [
+        ...v.wall2_lowers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall2.id, m.type === 'tall' ? 'tall' : 'lower')),
+        ...v.wall2_uppers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall2.id, 'upper')),
+        ...v.wall2_antresols.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall2.id, 'antresol')),
+      ].sort((a: any, b: any) => a.x - b.x);
+
+      // Corner modules from API response
+      const cornerMods: any[] = [];
+      if (v.corner_lower) {
+        cornerMods.push({
+          id: 'corner-lower', cabinetId: v.corner_lower.cabinet_id,
+          article: v.corner_lower.article, kind: v.corner_lower.kind,
+          x: 0, width: v.corner_lower.width, height: v.corner_lower.height,
+          depth: v.corner_lower.depth, type: 'corner', wallId: wall1.id,
+          glbFile: v.corner_lower.glb_url, rotation: 0,
+        });
       }
-    }, 0);
+      if (v.corner_upper) {
+        cornerMods.push({
+          id: 'corner-upper', cabinetId: v.corner_upper.cabinet_id,
+          article: v.corner_upper.article, kind: v.corner_upper.kind,
+          x: 0, width: v.corner_upper.width, height: v.corner_upper.height,
+          depth: v.corner_upper.depth, type: 'corner', wallId: wall1.id,
+          glbFile: v.corner_upper.glb_url, rotation: 0, yOffset: 1400,
+        });
+      }
+
+      return {
+        plan: {
+          walls: [
+            { wallId: wall1.id, modules: w1Mods, anchors: wall1.anchors },
+            { wallId: wall2.id, modules: w2Mods, anchors: wall2.anchors },
+          ],
+          cornerModules: cornerMods,
+          score: v.score * 100,
+          scoreBreakdown: {
+            hardConstraintsPassed: true, violations: [],
+            ergonomics: { score: 80, subMetrics: {} }, workflow: { score: 80, subMetrics: {} },
+            aesthetics: { score: 80, subMetrics: {} }, manufacturability: { score: 80, subMetrics: {} },
+            preferences: { score: 80, subMetrics: {} },
+          },
+        },
+        rank: i + 1,
+      } as SolverVariant;
+    });
+  };
+
+  // ---- Main generate handler ----
+  const handleGenerate = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const state = usePlannerStore.getState();
+      if (!state.walls.length) throw new Error("No walls configured");
+
+      const isLShaped = state.layoutType === 'l-shaped' && state.walls.length >= 2;
+      const variants = isLShaped
+        ? await handleGenerateLShaped(state)
+        : await handleGenerateLinear(state);
+
+      state.setVariants(variants);
+      toast.success(
+        `Сгенерировано ${variants.length} ${pluralize(variants.length, "вариант", "варианта", "вариантов")}`,
+      );
+    } catch (err) {
+      console.error("Plan generation failed:", err);
+      toast.error("Не удалось сгенерировать план кухни");
+    } finally {
+      setIsGenerating(false);
+    }
   }, []);
 
   // ---- Derived values ----
