@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 const COLORS = {
   cabinetBody: 0xC9A87C,    // warm natural wood
-  cabinetDoor: 0xD4B48E,    // slightly lighter door face
+  cabinetDoor: 0xFFFFFF,    // white door face
   countertop: 0x3A3A3A,     // dark stone
   countertopEdge: 0x2E2E2E, // darker edge bevel
   handle: 0xA0A0A0,         // brushed metal

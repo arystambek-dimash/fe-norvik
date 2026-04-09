@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Upload, RotateCcw } from "lucide-react";
+import dubVotanTexture from "../../../../assets/дуб вотан.png";
 
 interface CountertopPanelProps {
   highlighted?: boolean;
@@ -98,15 +99,13 @@ export default function CountertopPanel({ highlighted }: CountertopPanelProps) {
           <Upload className="h-3.5 w-3.5" />
           {countertopTextureUrl ? "Заменить текстуру" : "Загрузить текстуру"}
         </Button>
-        {countertopTextureUrl && (
-          <div className="mt-2 rounded border border-border/60 overflow-hidden">
-            <img
-              src={countertopTextureUrl}
-              alt="Текстура столешницы"
-              className="h-16 w-full object-cover"
-            />
-          </div>
-        )}
+        <div className="mt-2 rounded border border-border/60 overflow-hidden">
+          <img
+            src={countertopTextureUrl ?? dubVotanTexture}
+            alt="Текстура столешницы"
+            className="h-16 w-full object-cover"
+          />
+        </div>
       </div>
 
       {/* Reset */}

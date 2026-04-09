@@ -51,7 +51,7 @@ export default function FacadePanel() {
         <div className="flex items-center gap-2">
           <Input
             type="color"
-            value={facadeColor ?? "#D4B48E"}
+            value={facadeColor ?? "#FFFFFF"}
             onChange={handleColorChange}
             className="h-9 w-14 cursor-pointer p-1"
           />
