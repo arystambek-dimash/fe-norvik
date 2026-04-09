@@ -207,13 +207,44 @@ export default function WorkspaceEditorPage() {
   // ---- Convert API response to SolverVariant format for viewer ----
   let _apiModId = 0;
 
+  // Track heights from API response for positioning
+  let _upperHeight = 720;
+  let _antresolHeight = 350;
+  let _tallHeight = 0; // height of tallest tall module (penal/fridge)
+
   const apiModuleToPlaced = (m: PlacedModuleResponse, wallId: string, tier: string): any => {
-    // Map API type string to viewer tier
     let moduleType = tier;
     if (m.type === 'tall') moduleType = 'tall';
 
-    // Determine upper height for yOffset calculations
-    const upperH = m.height > 0 ? m.height : 720;
+    // Track actual heights for positioning
+    if (tier === 'upper' && m.height > 0) _upperHeight = m.height;
+    if (tier === 'antresol' && m.height > 0) _antresolHeight = m.height;
+    if (m.type === 'tall' && m.height > _tallHeight) _tallHeight = m.height;
+
+    // Compute yOffset:
+    // "До потолка" means antresol sits ON TOP of tallest tall module (penal/fridge).
+    // Upper cabinets align so that upper + antresol = same top line as tall + antresol.
+    const state = usePlannerStore.getState();
+    const ftc = state.floorToCeiling;
+
+    // Find tallest tall module height (penal 2118 or fridge 2050)
+    // _tallHeight is set during pre-scan
+    let yOffset: number | undefined;
+    if (tier === 'upper') {
+      if (ftc && _tallHeight > 0) {
+        // Push upper UP to close gap with antresol above
+        yOffset = _tallHeight - _upperHeight + 20;
+      } else {
+        yOffset = 1400;
+      }
+    } else if (tier === 'antresol') {
+      if (ftc && _tallHeight > 0) {
+        // Antresol at exact tall height (no shift)
+        yOffset = _tallHeight;
+      } else {
+        yOffset = 1400 + _upperHeight;
+      }
+    }
 
     return {
       id: `api-${_apiModId++}`,
@@ -227,13 +258,20 @@ export default function WorkspaceEditorPage() {
       type: moduleType,
       wallId,
       glbFile: m.glb_url ?? undefined,
-      ...(tier === 'upper' ? { yOffset: 1400 } : {}),
-      ...(tier === 'antresol' ? { yOffset: 1400 + 720 } : {}),
+      ...(yOffset != null ? { yOffset } : {}),
     };
   };
 
   const apiVariantToSolver = (v: VariantResponse, wallId: string, rank: number): SolverVariant => {
-    _apiModId = 0;
+    _apiModId = 0; _upperHeight = 720; _antresolHeight = 350; _tallHeight = 0;
+    // Pre-scan heights so yOffset calculations are correct
+    if (v.uppers.length > 0) _upperHeight = v.uppers[0].height || 720;
+    if (v.antresols.length > 0) _antresolHeight = v.antresols[0].height || 350;
+    // Find tallest tall module (penal ~2118 or fridge ~2050)
+    for (const m of v.lowers) {
+      if (m.type === 'tall' && m.height > _tallHeight) _tallHeight = m.height;
+    }
+
     const modules = [
       ...v.lowers.map(m => apiModuleToPlaced(m, wallId, m.type === 'tall' ? 'tall' : 'lower')),
       ...v.uppers.map(m => apiModuleToPlaced(m, wallId, 'upper')),
@@ -266,6 +304,7 @@ export default function WorkspaceEditorPage() {
       if (a.type === 'sink') type = 'supersink';
       else if (a.type === 'cooktop') type = 'plate';
       else if (a.type === 'fridge') type = 'fridge';
+      else if (a.type === 'penal') type = 'penal';
       else if (a.type === 'oven') type = 'penal';
       else type = 'sidepanel';
       return { type, position: a.position, width: a.width };
@@ -293,7 +332,7 @@ export default function WorkspaceEditorPage() {
     });
 
     return response.variants.map((v: VariantResponse, i: number) => {
-      _apiModId = 0;
+      _apiModId = 0; _upperHeight = 720; _antresolHeight = 350; _tallHeight = 0;
       const modules = [
         ...v.lowers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall.id, m.type === 'tall' ? 'tall' : 'lower')),
         ...v.uppers.map((m: PlacedModuleResponse) => apiModuleToPlaced(m, wall.id, 'upper')),
@@ -342,7 +381,7 @@ export default function WorkspaceEditorPage() {
 
     // API returns wall1 and wall2 modules SEPARATELY — no splitting needed
     return response.variants.map((v: LShapedVariantResponse, i: number) => {
-      _apiModId = 0;
+      _apiModId = 0; _upperHeight = 720; _antresolHeight = 350; _tallHeight = 0;
 
       // Wall 1 modules
       const w1Mods = [

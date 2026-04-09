@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 // Types needed for the kitchen planner
 interface Anchor {
-  type: 'sink' | 'cooktop' | 'oven' | 'fridge';
+  type: 'sink' | 'cooktop' | 'oven' | 'fridge' | 'penal';
   position: number;
   width: number;
   glbFile?: string | null;

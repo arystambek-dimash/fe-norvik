@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2, CookingPot, Droplets, Flame, Refrigerator } from "lucide-react";
+import { Plus, Trash2, CookingPot, Droplets, Flame, Refrigerator, PanelRight } from "lucide-react";
 import { MAX_COUNTERTOP, CORNER_WALL_OCCUPANCY } from "@/algorithm/constants";
 import { snapToGrid } from "@/algorithm/segmenter";
 import { isFillable, nearestFillable, getEffectiveWidths } from "@/algorithm/planner-v3";
@@ -15,7 +15,7 @@ import { CabinetKind, CabinetType } from "@/types/enums";
 import type { CabinetRead } from "@/types/entities";
 
 interface Anchor {
-  type: "sink" | "cooktop" | "oven" | "fridge";
+  type: "sink" | "cooktop" | "oven" | "fridge" | "penal";
   position: number;
   width: number;
   glbFile?: string | null;
@@ -42,6 +42,7 @@ const anchorTypes = [
   { type: "cooktop" as const, label: "Варочная панель", icon: Flame },
   { type: "oven" as const, label: "Духовой шкаф", icon: CookingPot },
   { type: "fridge" as const, label: "Холодильник", icon: Refrigerator },
+  { type: "penal" as const, label: "Пенал ПН 600", icon: PanelRight },
 ];
 
 function getAnchorColor(type: Anchor["type"]) {
@@ -54,6 +55,8 @@ function getAnchorColor(type: Anchor["type"]) {
       return "bg-red-500";
     case "fridge":
       return "bg-emerald-600";
+    case "penal":
+      return "bg-amber-600";
   }
 }
 
@@ -67,6 +70,8 @@ function getAnchorBorder(type: Anchor["type"]) {
       return "border-red-400";
     case "fridge":
       return "border-emerald-400";
+    case "penal":
+      return "border-amber-400";
   }
 }
 
@@ -934,9 +939,11 @@ export function WallsStep() {
         // Sink anchor = full supersink width (sink + dishwasher? + drawer)
         const supersinkW = sinkModuleWidth + (hasDishwasher ? 600 : 0) + drawerHousingWidth;
         const fridgeCabWidth = modules.find((m: any) => m.kind === CabinetKind.FRIDGE)?.width ?? 600;
+        const penalCabWidth = modules.find((m: any) => m.kind === CabinetKind.PENAL)?.width ?? 600;
         const width = type === "sink" ? supersinkW
           : type === "cooktop" ? currentCooktopWidth
           : type === "fridge" ? fridgeCabWidth
+          : type === "penal" ? penalCabWidth
           : 600;
         let snappedPosition = snapOutOfFridgeZone(wallId, snapToGrid(lastEnd), width);
         snappedPosition = snapOutOfCornerZone(wallId, snappedPosition, width);
@@ -1031,7 +1038,6 @@ export function WallsStep() {
       <div className="rounded-xl border border-border/60 p-4">
         <div className="grid grid-cols-2 gap-x-8 gap-y-3">
           <CompactToggle label="До потолка" checked={floorToCeiling} onChange={setFloorToCeiling} />
-          <CompactToggle label="СБ 200" checked={useSidePanel200} onChange={setUseSidePanel200} />
           <CompactToggle label="Вытяжка" checked={useHood} onChange={setUseHood} />
           <CompactToggle label="Встроенная плита" checked={useInbuiltStove} onChange={handleInbuiltStoveChange} />
           <CompactSelector
@@ -1040,13 +1046,6 @@ export function WallsStep() {
             value={ovenPlacement === 'under-cooktop' ? 'Под варочной' : 'В пенале'}
             onChange={(v) => setOvenPlacement(v === 'Под варочной' ? 'under-cooktop' : 'penal')}
           />
-          <CompactSelector
-            label="Холодильник"
-            options={['Слева', 'Справа'] as const}
-            value={fridgeSide === 'left' ? 'Слева' : 'Справа'}
-            onChange={(v) => setFridgeSide(v === 'Слева' ? 'left' : 'right')}
-          />
-          {/* Primary wall removed — fill between anchors, remainder at edges */}
         </div>
 
         {/* Standalone stove selection */}

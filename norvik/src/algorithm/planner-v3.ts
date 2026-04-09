@@ -20,8 +20,7 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const CABINET_WIDTHS = [800, 600, 500, 450, 400, 200] as const;
-// When floorToCeiling=true, exclude 200 (no ПГ 200 antresol exists)
+const CABINET_WIDTHS = [800, 600, 500, 450, 400] as const;  // 200 removed entirely
 const CABINET_WIDTHS_FTC = [800, 600, 500, 450, 400] as const;
 const W_TOL = 5; // width match tolerance (handles 600 vs 601 in DB)
 

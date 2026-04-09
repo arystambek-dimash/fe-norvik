@@ -1,7 +1,7 @@
 import type { CabinetRead } from '@/types/entities';
 import type { CabinetKind, CabinetSubtype } from '@/types/enums';
 
-export type AnchorType = 'sink' | 'cooktop' | 'oven' | 'fridge';
+export type AnchorType = 'sink' | 'cooktop' | 'oven' | 'fridge' | 'penal';
 export type SegmentContext = 'sink' | 'standard';
 export type LayoutType = 'linear' | 'l-shaped';
 
